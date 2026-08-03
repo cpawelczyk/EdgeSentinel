@@ -6,15 +6,117 @@
     "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-01/health"
   },
   {
+    "deviceId": "detroit-panel-02",
+    "siteId": "detroit",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-02/health"
+  },
+  {
+    "deviceId": "detroit-panel-03",
+    "siteId": "detroit",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-03/health"
+  },
+  {
+    "deviceId": "detroit-panel-04",
+    "siteId": "detroit",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-04/health"
+  },
+  {
+    "deviceId": "detroit-panel-05",
+    "siteId": "detroit",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-05/health"
+  },
+  {
     "deviceId": "detroit-gateway-01",
     "siteId": "detroit",
     "componentType": "gateway",
     "healthUrl": "http://127.0.0.1:8000/components/detroit-gateway-01/health"
   },
   {
+    "deviceId": "atlanta-gateway-01",
+    "siteId": "atlanta",
+    "componentType": "gateway",
+    "healthUrl": "http://127.0.0.1:8000/components/atlanta-gateway-01/health"
+  },
+  {
+    "deviceId": "atlanta-panel-01",
+    "siteId": "atlanta",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/atlanta-panel-01/health"
+  },
+  {
+    "deviceId": "atlanta-panel-02",
+    "siteId": "atlanta",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/atlanta-panel-02/health"
+  },
+  {
+    "deviceId": "atlanta-panel-03",
+    "siteId": "atlanta",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/atlanta-panel-03/health"
+  },
+  {
+    "deviceId": "atlanta-panel-04",
+    "siteId": "atlanta",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/atlanta-panel-04/health"
+  },
+  {
+    "deviceId": "atlanta-panel-05",
+    "siteId": "atlanta",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/atlanta-panel-05/health"
+  },
+  {
+    "deviceId": "phoenix-gateway-01",
+    "siteId": "phoenix",
+    "componentType": "gateway",
+    "healthUrl": "http://127.0.0.1:8000/components/phoenix-gateway-01/health"
+  },
+  {
+    "deviceId": "phoenix-panel-01",
+    "siteId": "phoenix",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/phoenix-panel-01/health"
+  },
+  {
+    "deviceId": "phoenix-panel-02",
+    "siteId": "phoenix",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/phoenix-panel-02/health"
+  },
+  {
+    "deviceId": "phoenix-panel-03",
+    "siteId": "phoenix",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/phoenix-panel-03/health"
+  },
+  {
+    "deviceId": "phoenix-panel-04",
+    "siteId": "phoenix",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/phoenix-panel-04/health"
+  },
+  {
+    "deviceId": "phoenix-panel-05",
+    "siteId": "phoenix",
+    "componentType": "controller",
+    "healthUrl": "http://127.0.0.1:8000/components/phoenix-panel-05/health"
+  },
+  {
     "deviceId": "access-control-server-01",
     "siteId": "shared",
     "componentType": "accessControlServer",
     "healthUrl": "http://127.0.0.1:8000/components/access-control-server-01/health"
+  },
+  {
+    "deviceId": "video-management-server-01",
+    "siteId": "shared",
+    "componentType": "videoServer",
+    "healthUrl": "http://127.0.0.1:8000/components/video-management-server-01/health"
   }
 ]

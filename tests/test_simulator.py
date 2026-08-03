@@ -63,11 +63,40 @@ def test_controller_can_be_set_to_offline(client):
     assert health_response.json()["status"] == "offline"
 
 
+def test_online_gateway_leaves_its_controllers_reachable(client):
+    response = client.get("/components/phoenix-panel-03/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "online"
+
+
+def test_offline_phoenix_gateway_blocks_only_phoenix_controllers(client):
+    gateway_response = client.post(
+        "/components/phoenix-gateway-01/fault",
+        json={"status": "offline"},
+    )
+    phoenix_responses = [
+        client.get(f"/components/phoenix-panel-0{panel}/health")
+        for panel in range(1, 6)
+    ]
+    detroit_response = client.get("/components/detroit-panel-03/health")
+    atlanta_response = client.get("/components/atlanta-panel-03/health")
+
+    assert gateway_response.status_code == 200
+    assert gateway_response.json()["status"] == "offline"
+    assert all(response.status_code == 503 for response in phoenix_responses)
+    assert components["phoenix-panel-03"]["status"] == HealthState.ONLINE
+    assert detroit_response.status_code == 200
+    assert atlanta_response.status_code == 200
+
+
 @pytest.mark.parametrize(
     ("device_id", "component_type", "site_id", "status"),
     [
         ("detroit-gateway-01", "gateway", "detroit", "degraded"),
-        ("access-control-server-01", "accessControlServer", "shared", "offline"),
+        ("atlanta-panel-03", "controller", "atlanta", "offline"),
+        ("phoenix-panel-03", "controller", "phoenix", "degraded"),
+        ("video-management-server-01", "videoServer", "shared", "offline"),
     ],
 )
 def test_existing_components_share_the_health_and_fault_contract(

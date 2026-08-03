@@ -13,6 +13,7 @@ from src.collector.main import (
     run_collector,
     run_pass,
 )
+from src.simulator.main import components as simulator_components
 
 
 COMPONENT = {
@@ -64,11 +65,8 @@ def test_default_inventory_path_is_independent_of_working_directory(monkeypatch)
 
     inventory = load_inventory()
 
-    assert [component["deviceId"] for component in inventory] == [
-        "detroit-panel-01",
-        "detroit-gateway-01",
-        "access-control-server-01",
-    ]
+    assert len(inventory) == 20
+    assert {component["deviceId"] for component in inventory} == set(simulator_components)
 
 
 @pytest.mark.parametrize(
@@ -170,6 +168,20 @@ def test_connection_failure_is_normalized(monkeypatch):
     assert record["failureReason"] == "connectionFailure"
     assert record["siteId"] == "detroit"
     assert record["componentType"] == "controller"
+
+
+def test_http_error_is_normalized(monkeypatch):
+    def raise_http_error(*args, **kwargs):
+        request = httpx.Request("GET", COMPONENT["healthUrl"])
+        response = httpx.Response(503, request=request)
+        raise httpx.HTTPStatusError("Service unavailable", request=request, response=response)
+
+    monkeypatch.setattr("src.collector.main.httpx.get", raise_http_error)
+
+    record = collect_component(COMPONENT)
+
+    assert record["status"] == "unknown"
+    assert record["failureReason"] == "httpError"
 
 
 def test_once_mode_polls_once_and_exits():
