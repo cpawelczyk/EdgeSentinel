@@ -48,3 +48,25 @@ Invoke-RestMethod -Method Post `
   -ContentType 'application/json' `
   -Body '{"status":"online","delaySeconds":1}'
 ```
+
+## Run the deterministic local scenario
+
+Start the simulator and collector in separate PowerShell windows. Use a shorter collector interval so it observes each scenario step:
+
+```powershell
+python src\collector\main.py --interval 2
+```
+
+Then run the scenario from a third window:
+
+```powershell
+python src\simulator\run_scenario.py
+```
+
+It resets the Phoenix gateway and `phoenix-panel-03`, then applies a three-second panel delay, clears it, takes the Phoenix gateway offline, and restores it. The default ten-second pause between steps gives the collector time to emit telemetry and transitions. Use a different pause when needed:
+
+```powershell
+python src\simulator\run_scenario.py --step-delay 5
+```
+
+This is a reproducible demonstration layer built from existing manual fault behavior. Randomized fleet behavior remains a separate future local enhancement.
