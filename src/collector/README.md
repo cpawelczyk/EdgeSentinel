@@ -2,6 +2,21 @@
 
 This collector reads the simulator's health endpoints and prints normalized telemetry to the terminal. The simulator must already be running on `http://127.0.0.1:8000`.
 
+## Inventory
+
+The collector loads monitored components from [inventory.json](inventory.json). Each entry contains only a stable device ID and its health endpoint:
+
+```json
+{
+  "deviceId": "detroit-panel-01",
+  "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-01/health"
+}
+```
+
+Components can later be added through this configuration file rather than by changing collector code.
+
+The default path is resolved beside the collector code. Use `--inventory <path>` only when testing a different inventory file.
+
 ## Run locally
 
 From the repository root in PowerShell:

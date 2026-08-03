@@ -1,16 +1,23 @@
 import json
+from pathlib import Path
 
 import httpx
 import pytest
 
-from src.collector.main import collect_component, parse_arguments, run_collector, run_pass
+from src.collector.main import (
+    InventoryError,
+    collect_component,
+    load_inventory,
+    main as collector_main,
+    parse_arguments,
+    run_collector,
+    run_pass,
+)
 
 
 COMPONENT = {
     "deviceId": "detroit-panel-01",
-    "siteId": "detroit",
-    "componentType": "controller",
-    "url": "http://simulator.test/components/detroit-panel-01/health",
+    "healthUrl": "http://simulator.test/components/detroit-panel-01/health",
 }
 
 
@@ -22,7 +29,86 @@ class FakeResponse:
         return None
 
     def json(self):
-        return {"status": self.status}
+        return {
+            "deviceId": "detroit-panel-01",
+            "siteId": "detroit",
+            "componentType": "controller",
+            "status": self.status,
+        }
+
+
+def test_valid_inventory_loads(monkeypatch):
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda *args, **kwargs: '[{"deviceId": "detroit-panel-01", "healthUrl": "http://simulator.test/health"}]',
+    )
+
+    assert load_inventory(Path("inventory.json")) == [
+        {"deviceId": "detroit-panel-01", "healthUrl": "http://simulator.test/health"}
+    ]
+
+
+def test_default_inventory_path_is_independent_of_working_directory(monkeypatch):
+    monkeypatch.chdir(Path(__file__).parent)
+
+    inventory = load_inventory()
+
+    assert [component["deviceId"] for component in inventory] == [
+        "detroit-panel-01",
+        "detroit-gateway-01",
+        "access-control-server-01",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("contents", "message"),
+    [
+        (None, "inventory file not found"),
+        ("not json", "inventory contains malformed JSON"),
+        ("{}", "inventory root must be a list"),
+        ("[]", "inventory must contain at least one component"),
+        ('[{"healthUrl": "http://one"}]', "requires a deviceId"),
+        ('[{"deviceId": "panel"}]', "requires a healthUrl"),
+        (
+            '[{"deviceId": "panel", "healthUrl": "http://one"}, '
+            '{"deviceId": "panel", "healthUrl": "http://two"}]',
+            "duplicate deviceId: panel",
+        ),
+    ],
+)
+def test_invalid_inventory_is_rejected(monkeypatch, contents, message):
+    if contents is None:
+        def read_text(*args, **kwargs):
+            raise FileNotFoundError
+    else:
+        def read_text(*args, **kwargs):
+            return contents
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    with pytest.raises(InventoryError, match=message):
+        load_inventory(Path("inventory.json"))
+
+
+def test_main_uses_the_loaded_inventory(monkeypatch):
+    loaded_inventory = [
+        {"deviceId": "detroit-panel-01", "healthUrl": "http://simulator.test/health"}
+    ]
+    observed = {}
+
+    def capture_run(once, interval, inventory):
+        observed["once"] = once
+        observed["inventory"] = inventory
+
+    monkeypatch.setattr("src.collector.main.load_inventory", lambda path: loaded_inventory)
+    monkeypatch.setattr("src.collector.main.run_collector", capture_run)
+
+    assert collector_main(["--once"]) == 0
+    assert observed == {
+        "once": True,
+        "inventory": loaded_inventory,
+    }
 
 
 def test_online_response_is_normalized(monkeypatch):
@@ -31,6 +117,8 @@ def test_online_response_is_normalized(monkeypatch):
     record = collect_component(COMPONENT)
 
     assert record["deviceId"] == "detroit-panel-01"
+    assert record["siteId"] == "detroit"
+    assert record["componentType"] == "controller"
     assert record["status"] == "online"
     assert record["failureReason"] is None
     assert isinstance(record["latencyMs"], float)
@@ -55,6 +143,8 @@ def test_connection_failure_is_normalized(monkeypatch):
 
     assert record["status"] == "unknown"
     assert record["failureReason"] == "connectionFailure"
+    assert record["siteId"] is None
+    assert record["componentType"] is None
 
 
 def test_once_mode_polls_once_and_exits():
