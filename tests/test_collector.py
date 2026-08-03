@@ -17,6 +17,8 @@ from src.collector.main import (
 
 COMPONENT = {
     "deviceId": "detroit-panel-01",
+    "siteId": "detroit",
+    "componentType": "controller",
     "healthUrl": "http://simulator.test/components/detroit-panel-01/health",
 }
 
@@ -41,11 +43,19 @@ def test_valid_inventory_loads(monkeypatch):
     monkeypatch.setattr(
         Path,
         "read_text",
-        lambda *args, **kwargs: '[{"deviceId": "detroit-panel-01", "healthUrl": "http://simulator.test/health"}]',
+        lambda *args, **kwargs: (
+            '[{"deviceId": "detroit-panel-01", "siteId": "detroit", '
+            '"componentType": "controller", "healthUrl": "http://simulator.test/health"}]'
+        ),
     )
 
     assert load_inventory(Path("inventory.json")) == [
-        {"deviceId": "detroit-panel-01", "healthUrl": "http://simulator.test/health"}
+        {
+            "deviceId": "detroit-panel-01",
+            "siteId": "detroit",
+            "componentType": "controller",
+            "healthUrl": "http://simulator.test/health",
+        }
     ]
 
 
@@ -69,10 +79,20 @@ def test_default_inventory_path_is_independent_of_working_directory(monkeypatch)
         ("{}", "inventory root must be a list"),
         ("[]", "inventory must contain at least one component"),
         ('[{"healthUrl": "http://one"}]', "requires a deviceId"),
-        ('[{"deviceId": "panel"}]', "requires a healthUrl"),
+        ('[{"deviceId": "panel", "healthUrl": "http://one"}]', "requires a siteId"),
         (
-            '[{"deviceId": "panel", "healthUrl": "http://one"}, '
-            '{"deviceId": "panel", "healthUrl": "http://two"}]',
+            '[{"deviceId": "panel", "siteId": "detroit", "healthUrl": "http://one"}]',
+            "requires a componentType",
+        ),
+        (
+            '[{"deviceId": "panel", "siteId": "detroit", '
+            '"componentType": "controller"}]',
+            "requires a healthUrl",
+        ),
+        (
+            '[{"deviceId": "panel", "siteId": "detroit", "componentType": "controller", '
+            '"healthUrl": "http://one"}, {"deviceId": "panel", "siteId": "detroit", '
+            '"componentType": "controller", "healthUrl": "http://two"}]',
             "duplicate deviceId: panel",
         ),
     ],
@@ -93,7 +113,12 @@ def test_invalid_inventory_is_rejected(monkeypatch, contents, message):
 
 def test_main_uses_the_loaded_inventory(monkeypatch):
     loaded_inventory = [
-        {"deviceId": "detroit-panel-01", "healthUrl": "http://simulator.test/health"}
+        {
+            "deviceId": "detroit-panel-01",
+            "siteId": "detroit",
+            "componentType": "controller",
+            "healthUrl": "http://simulator.test/health",
+        }
     ]
     observed = {}
 
@@ -143,8 +168,8 @@ def test_connection_failure_is_normalized(monkeypatch):
 
     assert record["status"] == "unknown"
     assert record["failureReason"] == "connectionFailure"
-    assert record["siteId"] is None
-    assert record["componentType"] is None
+    assert record["siteId"] == "detroit"
+    assert record["componentType"] == "controller"
 
 
 def test_once_mode_polls_once_and_exits():

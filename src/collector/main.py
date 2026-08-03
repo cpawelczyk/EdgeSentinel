@@ -36,9 +36,15 @@ def load_inventory(path: Path = DEFAULT_INVENTORY_PATH) -> list[dict]:
             raise InventoryError("each inventory entry must be an object")
 
         device_id = entry.get("deviceId")
+        site_id = entry.get("siteId")
+        component_type = entry.get("componentType")
         health_url = entry.get("healthUrl")
         if not isinstance(device_id, str) or not device_id:
             raise InventoryError("each inventory entry requires a deviceId")
+        if not isinstance(site_id, str) or not site_id:
+            raise InventoryError(f"inventory entry '{device_id}' requires a siteId")
+        if not isinstance(component_type, str) or not component_type:
+            raise InventoryError(f"inventory entry '{device_id}' requires a componentType")
         if not isinstance(health_url, str) or not health_url:
             raise InventoryError(f"inventory entry '{device_id}' requires a healthUrl")
         if device_id in device_ids:
@@ -49,12 +55,12 @@ def load_inventory(path: Path = DEFAULT_INVENTORY_PATH) -> list[dict]:
     return inventory
 
 
-def base_record(component: dict, health: dict | None = None) -> dict:
+def base_record(component: dict) -> dict:
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "deviceId": component["deviceId"],
-        "siteId": health["siteId"] if health else None,
-        "componentType": health["componentType"] if health else None,
+        "siteId": component["siteId"],
+        "componentType": component["componentType"],
         "checkType": "httpHealth",
     }
 
@@ -70,7 +76,7 @@ def collect_component(component: dict) -> dict:
         latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
 
         return {
-            **base_record(component, health),
+            **base_record(component),
             "status": health["status"],
             "latencyMs": latency_ms,
             "failureReason": None,

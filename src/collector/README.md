@@ -4,16 +4,18 @@ This collector reads the simulator's health endpoints and prints normalized tele
 
 ## Inventory
 
-The collector loads monitored components from [inventory.json](inventory.json). Each entry contains only a stable device ID and its health endpoint:
+The collector loads monitored components from [inventory.json](inventory.json). Each entry provides the component's stable identity and location context:
 
 ```json
 {
   "deviceId": "detroit-panel-01",
+  "siteId": "detroit",
+  "componentType": "controller",
   "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-01/health"
 }
 ```
 
-Components can later be added through this configuration file rather than by changing collector code.
+Components can later be added through this configuration file rather than by changing collector code. The collector uses this metadata even when a health endpoint cannot be reached.
 
 The default path is resolved beside the collector code. Use `--inventory <path>` only when testing a different inventory file.
 

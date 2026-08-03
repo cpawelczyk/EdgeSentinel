@@ -1,14 +1,20 @@
 [
   {
     "deviceId": "detroit-panel-01",
+    "siteId": "detroit",
+    "componentType": "controller",
     "healthUrl": "http://127.0.0.1:8000/components/detroit-panel-01/health"
   },
   {
     "deviceId": "detroit-gateway-01",
+    "siteId": "detroit",
+    "componentType": "gateway",
     "healthUrl": "http://127.0.0.1:8000/components/detroit-gateway-01/health"
   },
   {
     "deviceId": "access-control-server-01",
+    "siteId": "shared",
+    "componentType": "accessControlServer",
     "healthUrl": "http://127.0.0.1:8000/components/access-control-server-01/health"
   }
 ]
