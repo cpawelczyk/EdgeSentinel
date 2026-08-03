@@ -11,6 +11,7 @@ import httpx
 
 
 DEFAULT_INVENTORY_PATH = Path(__file__).with_name("inventory.json")
+DEFAULT_LATENCY_THRESHOLD_MS = 2000.0
 
 
 class InventoryError(Exception):
@@ -65,7 +66,9 @@ def base_record(component: dict) -> dict:
     }
 
 
-def collect_component(component: dict) -> dict:
+def collect_component(
+    component: dict, latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS
+) -> dict:
     """Poll one simulator health endpoint and normalize the result."""
     started_at = time.perf_counter()
 
@@ -74,12 +77,18 @@ def collect_component(component: dict) -> dict:
         response.raise_for_status()
         health = response.json()
         latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        status = health["status"]
+        failure_reason = None
+
+        if status == "online" and latency_ms > latency_threshold_ms:
+            status = "degraded"
+            failure_reason = "highLatency"
 
         return {
             **base_record(component),
-            "status": health["status"],
+            "status": status,
             "latencyMs": latency_ms,
-            "failureReason": None,
+            "failureReason": failure_reason,
         }
     except httpx.TimeoutException:
         failure_reason = "timeout"
@@ -121,10 +130,11 @@ def run_pass(
     inventory: list,
     collect=collect_component,
     output=print,
+    latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS,
 ) -> None:
     """Collect one record for every component and print status changes."""
     for component in inventory:
-        record = collect(component)
+        record = collect(component, latency_threshold_ms)
         output(json.dumps(record))
 
         previous_status = previous_statuses.get(record["deviceId"])
@@ -143,6 +153,13 @@ def positive_interval(value: str) -> float:
     return interval
 
 
+def positive_latency_threshold(value: str) -> float:
+    threshold = float(value)
+    if threshold <= 0:
+        raise argparse.ArgumentTypeError("latency threshold must be greater than zero")
+    return threshold
+
+
 def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Poll Edge Sentinel simulator health endpoints.")
     parser.add_argument("--once", action="store_true", help="Poll each component once and exit.")
@@ -158,6 +175,12 @@ def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
         default=5.0,
         help="Seconds between polling passes in continuous mode (default: 5).",
     )
+    parser.add_argument(
+        "--latency-threshold-ms",
+        type=positive_latency_threshold,
+        default=DEFAULT_LATENCY_THRESHOLD_MS,
+        help="Milliseconds before a successful online response is classified as degraded (default: 2000).",
+    )
     return parser.parse_args(arguments)
 
 
@@ -168,12 +191,13 @@ def run_collector(
     collect=collect_component,
     output=print,
     sleep=time.sleep,
+    latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS,
 ) -> None:
     previous_statuses = {}
 
     try:
         while True:
-            run_pass(previous_statuses, inventory, collect, output)
+            run_pass(previous_statuses, inventory, collect, output, latency_threshold_ms)
             if once:
                 return
             sleep(interval)
@@ -189,7 +213,12 @@ def main(arguments: list[str] | None = None) -> int:
         print(f"Collector startup error: {error}", file=sys.stderr)
         return 1
 
-    run_collector(args.once, args.interval, inventory)
+    run_collector(
+        args.once,
+        args.interval,
+        inventory,
+        latency_threshold_ms=args.latency_threshold_ms,
+    )
     return 0
 
 

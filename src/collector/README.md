@@ -45,6 +45,12 @@ Use `--interval` to change the interval in seconds:
 python src\collector\main.py --interval 2
 ```
 
+The collector classifies a successful `online` response as `degraded` when it exceeds the local 2000 ms latency threshold. Use `--latency-threshold-ms` to set a different threshold:
+
+```powershell
+python src\collector\main.py --latency-threshold-ms 3000
+```
+
 Each pass prints telemetry for every component. When a component's status changes, the collector also prints one transition record. A change from `offline` or `unknown` to `online` is labeled `recovered`.
 
 ```json

@@ -120,9 +120,10 @@ def test_main_uses_the_loaded_inventory(monkeypatch):
     ]
     observed = {}
 
-    def capture_run(once, interval, inventory):
+    def capture_run(once, interval, inventory, **kwargs):
         observed["once"] = once
         observed["inventory"] = inventory
+        observed["latency_threshold_ms"] = kwargs["latency_threshold_ms"]
 
     monkeypatch.setattr("src.collector.main.load_inventory", lambda path: loaded_inventory)
     monkeypatch.setattr("src.collector.main.run_collector", capture_run)
@@ -131,13 +132,16 @@ def test_main_uses_the_loaded_inventory(monkeypatch):
     assert observed == {
         "once": True,
         "inventory": loaded_inventory,
+        "latency_threshold_ms": 2000.0,
     }
 
 
-def test_online_response_is_normalized(monkeypatch):
+def test_successful_response_below_latency_threshold_remains_online(monkeypatch):
     monkeypatch.setattr("src.collector.main.httpx.get", lambda *args, **kwargs: FakeResponse("online"))
+    elapsed = iter([0.0, 0.5])
+    monkeypatch.setattr("src.collector.main.time.perf_counter", lambda: next(elapsed))
 
-    record = collect_component(COMPONENT)
+    record = collect_component(COMPONENT, latency_threshold_ms=1000.0)
 
     assert record["deviceId"] == "detroit-panel-01"
     assert record["siteId"] == "detroit"
@@ -147,13 +151,50 @@ def test_online_response_is_normalized(monkeypatch):
     assert isinstance(record["latencyMs"], float)
 
 
+def test_successful_response_above_latency_threshold_becomes_degraded(monkeypatch):
+    monkeypatch.setattr("src.collector.main.httpx.get", lambda *args, **kwargs: FakeResponse("online"))
+    elapsed = iter([0.0, 3.0])
+    monkeypatch.setattr("src.collector.main.time.perf_counter", lambda: next(elapsed))
+
+    record = collect_component(COMPONENT, latency_threshold_ms=2000.0)
+
+    assert record["status"] == "degraded"
+    assert record["latencyMs"] == 3000.0
+    assert record["failureReason"] == "highLatency"
+
+
 def test_application_reported_offline_is_preserved(monkeypatch):
     monkeypatch.setattr("src.collector.main.httpx.get", lambda *args, **kwargs: FakeResponse("offline"))
+    elapsed = iter([0.0, 3.0])
+    monkeypatch.setattr("src.collector.main.time.perf_counter", lambda: next(elapsed))
 
-    record = collect_component(COMPONENT)
+    record = collect_component(COMPONENT, latency_threshold_ms=2000.0)
 
     assert record["status"] == "offline"
     assert record["failureReason"] is None
+
+
+def test_application_reported_degraded_is_preserved(monkeypatch):
+    monkeypatch.setattr("src.collector.main.httpx.get", lambda *args, **kwargs: FakeResponse("degraded"))
+    elapsed = iter([0.0, 3.0])
+    monkeypatch.setattr("src.collector.main.time.perf_counter", lambda: next(elapsed))
+
+    record = collect_component(COMPONENT, latency_threshold_ms=2000.0)
+
+    assert record["status"] == "degraded"
+    assert record["failureReason"] is None
+
+
+def test_timeout_behavior_is_unchanged(monkeypatch):
+    def raise_timeout(*args, **kwargs):
+        raise httpx.TimeoutException("Timed out")
+
+    monkeypatch.setattr("src.collector.main.httpx.get", raise_timeout)
+
+    record = collect_component(COMPONENT)
+
+    assert record["status"] == "unknown"
+    assert record["failureReason"] == "timeout"
 
 
 def test_connection_failure_is_normalized(monkeypatch):
@@ -188,7 +229,7 @@ def test_once_mode_polls_once_and_exits():
     output = []
     calls = []
 
-    def collect(component):
+    def collect(component, latency_threshold_ms):
         calls.append(component)
         return {"deviceId": component["deviceId"], "status": "online"}
 
@@ -205,7 +246,7 @@ def test_unchanged_status_does_not_emit_a_transition():
     run_pass(
         previous_statuses,
         [COMPONENT],
-        lambda component: {"deviceId": component["deviceId"], "status": "online"},
+        lambda component, threshold: {"deviceId": component["deviceId"], "status": "online"},
         output.append,
     )
 
@@ -230,7 +271,7 @@ def test_status_changes_emit_transition_records(
     run_pass(
         previous_statuses,
         [COMPONENT],
-        lambda component: {"deviceId": component["deviceId"], "status": current_status},
+        lambda component, threshold: {"deviceId": component["deviceId"], "status": current_status},
         output.append,
     )
 
@@ -246,6 +287,34 @@ def test_invalid_interval_is_rejected():
         parse_arguments(["--interval", "0"])
 
 
+def test_latency_threshold_can_be_configured():
+    args = parse_arguments(["--latency-threshold-ms", "1500"])
+
+    assert args.latency_threshold_ms == 1500.0
+
+
+def test_latency_recovery_emits_a_status_transition(monkeypatch):
+    responses = iter([FakeResponse("online"), FakeResponse("online")])
+    elapsed = iter([0.0, 3.0, 10.0, 10.2])
+    output = []
+    previous_statuses = {}
+
+    monkeypatch.setattr("src.collector.main.httpx.get", lambda *args, **kwargs: next(responses))
+    monkeypatch.setattr("src.collector.main.time.perf_counter", lambda: next(elapsed))
+
+    run_pass(previous_statuses, [COMPONENT], output=output.append, latency_threshold_ms=2000.0)
+    run_pass(previous_statuses, [COMPONENT], output=output.append, latency_threshold_ms=2000.0)
+
+    first_record = json.loads(output[0])
+    second_record = json.loads(output[1])
+    transition = json.loads(output[2])
+    assert first_record["status"] == "degraded"
+    assert second_record["status"] == "online"
+    assert transition["previousStatus"] == "degraded"
+    assert transition["currentStatus"] == "online"
+    assert transition["transition"] == "statusChanged"
+
+
 def test_continuous_mode_stops_cleanly_on_keyboard_interrupt():
     output = []
 
@@ -256,7 +325,7 @@ def test_continuous_mode_stops_cleanly_on_keyboard_interrupt():
         False,
         5.0,
         [COMPONENT],
-        lambda component: {"deviceId": component["deviceId"], "status": "online"},
+        lambda component, threshold: {"deviceId": component["deviceId"], "status": "online"},
         output.append,
         interrupt_sleep,
     )
