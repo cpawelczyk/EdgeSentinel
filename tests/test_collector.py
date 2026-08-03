@@ -1,6 +1,9 @@
-import httpx
+import json
 
-from src.collector.main import collect_component
+import httpx
+import pytest
+
+from src.collector.main import collect_component, parse_arguments, run_collector, run_pass
 
 
 COMPONENT = {
@@ -52,3 +55,83 @@ def test_connection_failure_is_normalized(monkeypatch):
 
     assert record["status"] == "unknown"
     assert record["failureReason"] == "connectionFailure"
+
+
+def test_once_mode_polls_once_and_exits():
+    output = []
+    calls = []
+
+    def collect(component):
+        calls.append(component)
+        return {"deviceId": component["deviceId"], "status": "online"}
+
+    run_collector(True, 5.0, [COMPONENT], collect, output.append)
+
+    assert calls == [COMPONENT]
+    assert len(output) == 1
+
+
+def test_unchanged_status_does_not_emit_a_transition():
+    output = []
+    previous_statuses = {"detroit-panel-01": "online"}
+
+    run_pass(
+        previous_statuses,
+        [COMPONENT],
+        lambda component: {"deviceId": component["deviceId"], "status": "online"},
+        output.append,
+    )
+
+    assert len(output) == 1
+    assert json.loads(output[0])["status"] == "online"
+
+
+@pytest.mark.parametrize(
+    ("previous_status", "current_status", "expected_transition"),
+    [
+        ("online", "offline", "statusChanged"),
+        ("offline", "online", "recovered"),
+        ("online", "degraded", "statusChanged"),
+    ],
+)
+def test_status_changes_emit_transition_records(
+    previous_status, current_status, expected_transition
+):
+    output = []
+    previous_statuses = {"detroit-panel-01": previous_status}
+
+    run_pass(
+        previous_statuses,
+        [COMPONENT],
+        lambda component: {"deviceId": component["deviceId"], "status": current_status},
+        output.append,
+    )
+
+    transition = json.loads(output[1])
+    assert transition["previousStatus"] == previous_status
+    assert transition["currentStatus"] == current_status
+    assert transition["transition"] == expected_transition
+    assert previous_statuses["detroit-panel-01"] == current_status
+
+
+def test_invalid_interval_is_rejected():
+    with pytest.raises(SystemExit):
+        parse_arguments(["--interval", "0"])
+
+
+def test_continuous_mode_stops_cleanly_on_keyboard_interrupt():
+    output = []
+
+    def interrupt_sleep(interval):
+        raise KeyboardInterrupt
+
+    run_collector(
+        False,
+        5.0,
+        [COMPONENT],
+        lambda component: {"deviceId": component["deviceId"], "status": "online"},
+        output.append,
+        interrupt_sleep,
+    )
+
+    assert output[-1] == "Collector stopped."
