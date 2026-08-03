@@ -3,7 +3,7 @@
 from asyncio import sleep
 from enum import Enum
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 
@@ -54,24 +54,32 @@ def health_response(component: dict) -> dict:
     }
 
 
-@app.get("/components/detroit-panel-01/health")
-async def get_controller_health() -> dict:
-    """Return the current health state for Detroit's simulated controller."""
-    controller = components["detroit-panel-01"]
-    await sleep(controller["delaySeconds"])
-    return health_response(controller)
+def get_component(device_id: str) -> dict:
+    component = components.get(device_id)
+    if component is None:
+        raise HTTPException(status_code=404, detail=f"Component '{device_id}' was not found.")
+
+    return component
 
 
-@app.post("/components/detroit-panel-01/fault")
-async def set_controller_fault(fault: FaultRequest) -> dict:
-    """Manually set controller health and an optional response delay."""
-    controller = components["detroit-panel-01"]
-    controller["status"] = fault.status
+@app.get("/components/{device_id}/health")
+async def get_component_health(device_id: str) -> dict:
+    """Return the current health state for a simulated component."""
+    component = get_component(device_id)
+    await sleep(component["delaySeconds"])
+    return health_response(component)
+
+
+@app.post("/components/{device_id}/fault")
+async def set_component_fault(device_id: str, fault: FaultRequest) -> dict:
+    """Manually set component health and an optional response delay."""
+    component = get_component(device_id)
+    component["status"] = fault.status
 
     if fault.delaySeconds is not None:
-        controller["delaySeconds"] = fault.delaySeconds
+        component["delaySeconds"] = fault.delaySeconds
 
     return {
-        **health_response(controller),
-        "delaySeconds": controller["delaySeconds"],
+        **health_response(component),
+        "delaySeconds": component["delaySeconds"],
     }

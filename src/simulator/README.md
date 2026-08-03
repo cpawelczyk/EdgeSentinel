@@ -15,6 +15,14 @@ python -m uvicorn main:app --app-dir src\simulator --reload
 
 The simulator listens at `http://127.0.0.1:8000`.
 
+## Run tests
+
+From the repository root:
+
+```powershell
+python -m pytest
+```
+
 ## Check controller health
 
 ```powershell
