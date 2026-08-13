@@ -48,3 +48,4 @@ local.settings.*.json
 azure.yaml.user
 *.publishsettings
 *.publishprofile
+docs/architecture/*.docx
