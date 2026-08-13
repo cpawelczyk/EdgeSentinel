@@ -1,12 +1,50 @@
-# Python virtual environment
-.venv/
-
-# Python cache files
-__pycache__/
-*.pyc
-
 # Local environment variables and secrets
 .env
+.env.*
+!.env.example
+!.env.template
 
-# VS Code workspace settings
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache, compiled files, and tooling artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+
+# Coverage and test reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local logs
+*.log
+logs/
+log/
+
+# IDE and editor metadata
 .vscode/
+.idea/
+*.code-workspace
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local Azure credentials and developer-specific configuration
+local.settings.json
+local.settings.*.json
+azure.yaml.user
+*.publishsettings
+*.publishprofile

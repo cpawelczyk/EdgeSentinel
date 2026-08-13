@@ -75,9 +75,21 @@ def collect_component(
     try:
         response = httpx.get(component["healthUrl"], timeout=5.0)
         response.raise_for_status()
-        health = response.json()
+        try:
+            health = response.json()
+        except ValueError:
+            health = None
         latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
-        status = health["status"]
+
+        status = health.get("status") if isinstance(health, dict) else None
+        if not isinstance(status, str) or status not in {"online", "degraded", "offline"}:
+            return {
+                **base_record(component),
+                "status": "unknown",
+                "latencyMs": latency_ms,
+                "failureReason": "invalidResponse",
+            }
+
         failure_reason = None
 
         if status == "online" and latency_ms > latency_threshold_ms:

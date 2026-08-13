@@ -40,6 +40,25 @@ class FakeResponse:
         }
 
 
+class InvalidJsonResponse:
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        raise json.JSONDecodeError("Expecting value", "not json", 0)
+
+
+class PayloadResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.payload
+
+
 def test_valid_inventory_loads(monkeypatch):
     monkeypatch.setattr(
         Path,
@@ -183,6 +202,37 @@ def test_application_reported_degraded_is_preserved(monkeypatch):
 
     assert record["status"] == "degraded"
     assert record["failureReason"] is None
+
+
+def test_malformed_json_response_is_normalized(monkeypatch):
+    monkeypatch.setattr(
+        "src.collector.main.httpx.get", lambda *args, **kwargs: InvalidJsonResponse()
+    )
+
+    record = collect_component(COMPONENT)
+
+    assert record["status"] == "unknown"
+    assert record["failureReason"] == "invalidResponse"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"status": "unsupported"},
+        {"status": 1},
+    ],
+    ids=["missing-status", "unsupported-status", "non-string-status"],
+)
+def test_invalid_status_response_is_normalized(monkeypatch, payload):
+    monkeypatch.setattr(
+        "src.collector.main.httpx.get", lambda *args, **kwargs: PayloadResponse(payload)
+    )
+
+    record = collect_component(COMPONENT)
+
+    assert record["status"] == "unknown"
+    assert record["failureReason"] == "invalidResponse"
 
 
 def test_timeout_behavior_is_unchanged(monkeypatch):
