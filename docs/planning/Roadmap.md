@@ -150,3 +150,4 @@ Potential future enhancements include:
 - Event Grid
 - AI-assisted anomaly detection
 - Additional simulated infrastructure components
+- Grafana Integration
