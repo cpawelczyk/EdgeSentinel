@@ -5,8 +5,12 @@ import httpx
 import pytest
 
 from src.collector.main import (
+    AZURE_MONITOR_SCOPE,
+    AZURE_STREAM_NAME,
+    AzureLogExporter,
     InventoryError,
     collect_component,
+    load_azure_configuration,
     load_inventory,
     main as collector_main,
     parse_arguments,
@@ -57,6 +61,29 @@ class PayloadResponse:
 
     def json(self):
         return self.payload
+
+
+class FakeToken:
+    token = "test-access-token"
+
+
+class FakeCredential:
+    def __init__(self):
+        self.scopes = []
+
+    def get_token(self, *scopes):
+        self.scopes.append(scopes)
+        return FakeToken()
+
+
+def azure_configuration():
+    return {
+        "tenant_id": "tenant-id",
+        "client_id": "client-id",
+        "client_secret": "super-secret-value",
+        "endpoint": "https://example.ingest.monitor.azure.com/",
+        "dcr_immutable_id": "dcr-immutable-id",
+    }
 
 
 def test_valid_inventory_loads(monkeypatch):
@@ -153,6 +180,130 @@ def test_main_uses_the_loaded_inventory(monkeypatch):
         "inventory": loaded_inventory,
         "latency_threshold_ms": 2000.0,
     }
+
+
+def test_local_only_mode_does_not_require_or_create_azure_export(monkeypatch):
+    loaded_inventory = [COMPONENT]
+    observed = {}
+
+    monkeypatch.setattr("src.collector.main.load_inventory", lambda path: loaded_inventory)
+    monkeypatch.setattr(
+        "src.collector.main.run_collector",
+        lambda *args, **kwargs: observed.update(kwargs),
+    )
+    monkeypatch.setattr(
+        "src.collector.main.AzureLogExporter",
+        lambda configuration: pytest.fail("Azure exporter should not be created"),
+    )
+
+    assert collector_main(["--once"]) == 0
+    assert observed == {"latency_threshold_ms": 2000.0}
+
+
+def test_azure_mode_requires_all_configuration_values(monkeypatch, capsys):
+    for variable in (
+        "EDGESENTINEL_TENANT_ID",
+        "EDGESENTINEL_CLIENT_ID",
+        "EDGESENTINEL_CLIENT_SECRET",
+        "EDGESENTINEL_DCR_ENDPOINT",
+        "EDGESENTINEL_DCR_IMMUTABLE_ID",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+
+    assert collector_main(["--azure", "--once"]) == 1
+
+    error = capsys.readouterr().err
+    assert "EDGESENTINEL_TENANT_ID" in error
+    assert "EDGESENTINEL_CLIENT_SECRET" in error
+
+
+def test_azure_configuration_strips_endpoint_trailing_slash():
+    configuration = azure_configuration()
+
+    loaded = load_azure_configuration(
+        {
+            "EDGESENTINEL_TENANT_ID": configuration["tenant_id"],
+            "EDGESENTINEL_CLIENT_ID": configuration["client_id"],
+            "EDGESENTINEL_CLIENT_SECRET": configuration["client_secret"],
+            "EDGESENTINEL_DCR_ENDPOINT": configuration["endpoint"],
+            "EDGESENTINEL_DCR_IMMUTABLE_ID": configuration["dcr_immutable_id"],
+        }
+    )
+
+    assert loaded["endpoint"] == "https://example.ingest.monitor.azure.com"
+
+
+def test_azure_export_uses_client_credentials_and_expected_ingestion_request(monkeypatch):
+    credential = FakeCredential()
+    created_with = {}
+    sent = {}
+
+    def credential_factory(**kwargs):
+        created_with.update(kwargs)
+        return credential
+
+    class SuccessfulPostResponse:
+        def raise_for_status(self):
+            return None
+
+    def post(url, **kwargs):
+        sent["url"] = url
+        sent.update(kwargs)
+        return SuccessfulPostResponse()
+
+    monkeypatch.setattr("src.collector.main.httpx.post", post)
+    exporter = AzureLogExporter(azure_configuration(), credential_factory=credential_factory)
+    record = {
+        "timestamp": "2026-08-03T12:00:00+00:00",
+        "deviceId": "detroit-panel-01",
+        "siteId": "detroit",
+        "componentType": "controller",
+        "checkType": "httpHealth",
+        "status": "online",
+        "latencyMs": 4.2,
+        "failureReason": None,
+    }
+
+    exporter.send(record)
+
+    assert created_with == {
+        "tenant_id": "tenant-id",
+        "client_id": "client-id",
+        "client_secret": "super-secret-value",
+    }
+    assert credential.scopes == [(AZURE_MONITOR_SCOPE,)]
+    assert sent["url"] == (
+        "https://example.ingest.monitor.azure.com/dataCollectionRules/dcr-immutable-id/"
+        "streams/Custom-EdgeSentinel?api-version=2023-01-01"
+    )
+    assert sent["headers"]["Authorization"] == "Bearer test-access-token"
+    assert sent["headers"]["Content-Type"] == "application/json"
+    assert sent["json"] == [record]
+    assert AZURE_STREAM_NAME == "Custom-EdgeSentinel"
+
+
+@pytest.mark.parametrize("failure", ["authentication", "ingestion"])
+def test_azure_export_failures_are_non_fatal_and_do_not_expose_secrets(monkeypatch, failure):
+    credential = FakeCredential()
+    output = []
+
+    if failure == "authentication":
+        def get_token(*scopes):
+            raise RuntimeError("super-secret-value")
+
+        credential.get_token = get_token
+    else:
+        def post(*args, **kwargs):
+            raise httpx.ConnectError("super-secret-value")
+
+        monkeypatch.setattr("src.collector.main.httpx.post", post)
+
+    exporter = AzureLogExporter(azure_configuration(), credential_factory=lambda **kwargs: credential)
+    exporter.send({"deviceId": "detroit-panel-01", "status": "online"}, output.append)
+
+    assert len(output) == 1
+    assert "warning" in output[0].lower()
+    assert "super-secret-value" not in output[0]
 
 
 def test_successful_response_below_latency_threshold_remains_online(monkeypatch):
@@ -302,6 +453,26 @@ def test_unchanged_status_does_not_emit_a_transition():
 
     assert len(output) == 1
     assert json.loads(output[0])["status"] == "online"
+
+
+def test_azure_export_sends_check_records_but_not_transitions():
+    output = []
+    exported_records = []
+
+    class Exporter:
+        def send(self, record, output):
+            exported_records.append(record)
+
+    run_pass(
+        {"detroit-panel-01": "offline"},
+        [COMPONENT],
+        lambda component, threshold: {"deviceId": component["deviceId"], "status": "online"},
+        output.append,
+        azure_exporter=Exporter(),
+    )
+
+    assert exported_records == [{"deviceId": "detroit-panel-01", "status": "online"}]
+    assert json.loads(output[1])["eventType"] == "statusTransition"
 
 
 @pytest.mark.parametrize(

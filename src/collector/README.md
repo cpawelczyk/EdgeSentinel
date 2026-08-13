@@ -64,3 +64,25 @@ Example output:
 ```json
 {"timestamp": "2026-08-03T12:00:00+00:00", "deviceId": "detroit-panel-01", "siteId": "detroit", "componentType": "controller", "checkType": "httpHealth", "status": "online", "latencyMs": 4.2, "failureReason": null}
 ```
+
+## Optional Azure Monitor Logs export
+
+The collector is local-only by default; Azure configuration is not needed unless `--azure` is supplied. With Azure enabled, normalized check records continue to print locally and are also sent to Azure Monitor Logs. Status-transition records remain local-only.
+
+Set these environment variables in the PowerShell session before starting the collector:
+
+```powershell
+$env:EDGESENTINEL_TENANT_ID = "<tenant-id>"
+$env:EDGESENTINEL_CLIENT_ID = "<client-id>"
+$env:EDGESENTINEL_CLIENT_SECRET = "<client-secret>"
+$env:EDGESENTINEL_DCR_ENDPOINT = "<logs-ingestion-endpoint>"
+$env:EDGESENTINEL_DCR_IMMUTABLE_ID = "<dcr-immutable-id>"
+```
+
+Run with Azure export enabled:
+
+```powershell
+python src\collector\main.py --once --azure
+```
+
+If Azure authentication or ingestion fails, the collector prints a concise warning and continues producing local telemetry.

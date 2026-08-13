@@ -2,20 +2,96 @@
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+from azure.identity import ClientSecretCredential
 
 
 DEFAULT_INVENTORY_PATH = Path(__file__).with_name("inventory.json")
 DEFAULT_LATENCY_THRESHOLD_MS = 2000.0
+AZURE_STREAM_NAME = "Custom-EdgeSentinel"
+AZURE_MONITOR_SCOPE = "https://monitor.azure.com/.default"
+AZURE_INGESTION_API_VERSION = "2023-01-01"
+AZURE_REQUIRED_ENVIRONMENT_VARIABLES = (
+    "EDGESENTINEL_TENANT_ID",
+    "EDGESENTINEL_CLIENT_ID",
+    "EDGESENTINEL_CLIENT_SECRET",
+    "EDGESENTINEL_DCR_ENDPOINT",
+    "EDGESENTINEL_DCR_IMMUTABLE_ID",
+)
 
 
 class InventoryError(Exception):
     """Raised when the collector inventory cannot be used."""
+
+
+class AzureConfigurationError(Exception):
+    """Raised when Azure export configuration is incomplete."""
+
+
+def load_azure_configuration(environ: dict | None = None) -> dict:
+    """Load the Azure export settings required by the Logs Ingestion API."""
+    environment = os.environ if environ is None else environ
+    missing = [name for name in AZURE_REQUIRED_ENVIRONMENT_VARIABLES if not environment.get(name)]
+    if missing:
+        raise AzureConfigurationError(
+            "missing required Azure environment variables: " + ", ".join(missing)
+        )
+
+    return {
+        "tenant_id": environment["EDGESENTINEL_TENANT_ID"],
+        "client_id": environment["EDGESENTINEL_CLIENT_ID"],
+        "client_secret": environment["EDGESENTINEL_CLIENT_SECRET"],
+        "endpoint": environment["EDGESENTINEL_DCR_ENDPOINT"].rstrip("/"),
+        "dcr_immutable_id": environment["EDGESENTINEL_DCR_IMMUTABLE_ID"],
+    }
+
+
+class AzureLogExporter:
+    """Send normalized check records to Azure Monitor Logs."""
+
+    def __init__(self, configuration: dict, credential_factory=ClientSecretCredential):
+        self.endpoint = configuration["endpoint"].rstrip("/")
+        self.dcr_immutable_id = configuration["dcr_immutable_id"]
+        self.credential = credential_factory(
+            tenant_id=configuration["tenant_id"],
+            client_id=configuration["client_id"],
+            client_secret=configuration["client_secret"],
+        )
+
+    @property
+    def ingestion_url(self) -> str:
+        return (
+            f"{self.endpoint}/dataCollectionRules/{self.dcr_immutable_id}/streams/"
+            f"{AZURE_STREAM_NAME}?api-version={AZURE_INGESTION_API_VERSION}"
+        )
+
+    def send(self, record: dict, output=print) -> None:
+        """Send one check record, keeping Azure failures local and non-fatal."""
+        try:
+            token = self.credential.get_token(AZURE_MONITOR_SCOPE)
+        except Exception:
+            output("Azure export warning: failed to acquire Azure access token.")
+            return
+
+        try:
+            response = httpx.post(
+                self.ingestion_url,
+                headers={
+                    "Authorization": f"Bearer {token.token}",
+                    "Content-Type": "application/json",
+                },
+                json=[record],
+                timeout=10.0,
+            )
+            response.raise_for_status()
+        except Exception:
+            output("Azure export warning: failed to send telemetry to Azure.")
 
 
 def load_inventory(path: Path = DEFAULT_INVENTORY_PATH) -> list[dict]:
@@ -143,11 +219,14 @@ def run_pass(
     collect=collect_component,
     output=print,
     latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS,
+    azure_exporter: AzureLogExporter | None = None,
 ) -> None:
     """Collect one record for every component and print status changes."""
     for component in inventory:
         record = collect(component, latency_threshold_ms)
         output(json.dumps(record))
+        if azure_exporter is not None:
+            azure_exporter.send(record, output)
 
         previous_status = previous_statuses.get(record["deviceId"])
         if previous_status is not None:
@@ -175,6 +254,11 @@ def positive_latency_threshold(value: str) -> float:
 def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Poll Edge Sentinel simulator health endpoints.")
     parser.add_argument("--once", action="store_true", help="Poll each component once and exit.")
+    parser.add_argument(
+        "--azure",
+        action="store_true",
+        help="Also send normalized check records to Azure Monitor Logs.",
+    )
     parser.add_argument(
         "--inventory",
         type=Path,
@@ -204,12 +288,20 @@ def run_collector(
     output=print,
     sleep=time.sleep,
     latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS,
+    azure_exporter: AzureLogExporter | None = None,
 ) -> None:
     previous_statuses = {}
 
     try:
         while True:
-            run_pass(previous_statuses, inventory, collect, output, latency_threshold_ms)
+            run_pass(
+                previous_statuses,
+                inventory,
+                collect,
+                output,
+                latency_threshold_ms,
+                azure_exporter,
+            )
             if once:
                 return
             sleep(interval)
@@ -219,18 +311,26 @@ def run_collector(
 
 def main(arguments: list[str] | None = None) -> int:
     args = parse_arguments(arguments)
+    azure_exporter = None
+    if args.azure:
+        try:
+            azure_exporter = AzureLogExporter(load_azure_configuration())
+        except AzureConfigurationError as error:
+            print(f"Collector startup error: {error}", file=sys.stderr)
+            return 1
+
     try:
         inventory = load_inventory(args.inventory)
     except InventoryError as error:
         print(f"Collector startup error: {error}", file=sys.stderr)
         return 1
 
-    run_collector(
-        args.once,
-        args.interval,
-        inventory,
-        latency_threshold_ms=args.latency_threshold_ms,
-    )
+    collector_arguments = {
+        "latency_threshold_ms": args.latency_threshold_ms,
+    }
+    if azure_exporter is not None:
+        collector_arguments["azure_exporter"] = azure_exporter
+    run_collector(args.once, args.interval, inventory, **collector_arguments)
     return 0
 
 
