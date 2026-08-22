@@ -78,9 +78,6 @@ class FakeCredential:
 
 def azure_configuration():
     return {
-        "tenant_id": "tenant-id",
-        "client_id": "client-id",
-        "client_secret": "super-secret-value",
         "endpoint": "https://example.ingest.monitor.azure.com/",
         "dcr_immutable_id": "dcr-immutable-id",
     }
@@ -200,11 +197,8 @@ def test_local_only_mode_does_not_require_or_create_azure_export(monkeypatch):
     assert observed == {"latency_threshold_ms": 2000.0}
 
 
-def test_azure_mode_requires_all_configuration_values(monkeypatch, capsys):
+def test_azure_mode_requires_dcr_configuration_values(monkeypatch, capsys):
     for variable in (
-        "EDGESENTINEL_TENANT_ID",
-        "EDGESENTINEL_CLIENT_ID",
-        "EDGESENTINEL_CLIENT_SECRET",
         "EDGESENTINEL_DCR_ENDPOINT",
         "EDGESENTINEL_DCR_IMMUTABLE_ID",
     ):
@@ -213,8 +207,8 @@ def test_azure_mode_requires_all_configuration_values(monkeypatch, capsys):
     assert collector_main(["--azure", "--once"]) == 1
 
     error = capsys.readouterr().err
-    assert "EDGESENTINEL_TENANT_ID" in error
-    assert "EDGESENTINEL_CLIENT_SECRET" in error
+    assert "EDGESENTINEL_DCR_ENDPOINT" in error
+    assert "EDGESENTINEL_DCR_IMMUTABLE_ID" in error
 
 
 def test_azure_configuration_strips_endpoint_trailing_slash():
@@ -222,9 +216,6 @@ def test_azure_configuration_strips_endpoint_trailing_slash():
 
     loaded = load_azure_configuration(
         {
-            "EDGESENTINEL_TENANT_ID": configuration["tenant_id"],
-            "EDGESENTINEL_CLIENT_ID": configuration["client_id"],
-            "EDGESENTINEL_CLIENT_SECRET": configuration["client_secret"],
             "EDGESENTINEL_DCR_ENDPOINT": configuration["endpoint"],
             "EDGESENTINEL_DCR_IMMUTABLE_ID": configuration["dcr_immutable_id"],
         }
@@ -233,7 +224,25 @@ def test_azure_configuration_strips_endpoint_trailing_slash():
     assert loaded["endpoint"] == "https://example.ingest.monitor.azure.com"
 
 
-def test_azure_export_uses_client_credentials_and_expected_ingestion_request(monkeypatch):
+def test_azure_exporter_uses_default_azure_credential(monkeypatch):
+    credential = FakeCredential()
+    created = []
+
+    def default_credential_factory():
+        created.append(True)
+        return credential
+
+    monkeypatch.setattr(
+        "src.collector.main.DefaultAzureCredential", default_credential_factory
+    )
+
+    exporter = AzureLogExporter(azure_configuration())
+
+    assert exporter.credential is credential
+    assert created == [True]
+
+
+def test_azure_export_uses_default_credential_and_expected_ingestion_request(monkeypatch):
     credential = FakeCredential()
     created_with = {}
     sent = {}
@@ -266,11 +275,7 @@ def test_azure_export_uses_client_credentials_and_expected_ingestion_request(mon
 
     exporter.send(record)
 
-    assert created_with == {
-        "tenant_id": "tenant-id",
-        "client_id": "client-id",
-        "client_secret": "super-secret-value",
-    }
+    assert created_with == {}
     assert credential.scopes == [(AZURE_MONITOR_SCOPE,)]
     assert sent["url"] == (
         "https://example.ingest.monitor.azure.com/dataCollectionRules/dcr-immutable-id/"
@@ -289,12 +294,12 @@ def test_azure_export_failures_are_non_fatal_and_do_not_expose_secrets(monkeypat
 
     if failure == "authentication":
         def get_token(*scopes):
-            raise RuntimeError("super-secret-value")
+            raise RuntimeError("credential failure")
 
         credential.get_token = get_token
     else:
         def post(*args, **kwargs):
-            raise httpx.ConnectError("super-secret-value")
+            raise httpx.ConnectError("connection failure")
 
         monkeypatch.setattr("src.collector.main.httpx.post", post)
 
@@ -303,7 +308,8 @@ def test_azure_export_failures_are_non_fatal_and_do_not_expose_secrets(monkeypat
 
     assert len(output) == 1
     assert "warning" in output[0].lower()
-    assert "super-secret-value" not in output[0]
+    assert "credential failure" not in output[0]
+    assert "connection failure" not in output[0]
 
 
 def test_successful_response_below_latency_threshold_remains_online(monkeypatch):

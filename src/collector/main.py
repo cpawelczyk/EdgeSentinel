@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
-from azure.identity import ClientSecretCredential
+from azure.identity import DefaultAzureCredential
 
 
 DEFAULT_INVENTORY_PATH = Path(__file__).with_name("inventory.json")
@@ -18,9 +18,6 @@ AZURE_STREAM_NAME = "Custom-EdgeSentinel"
 AZURE_MONITOR_SCOPE = "https://monitor.azure.com/.default"
 AZURE_INGESTION_API_VERSION = "2023-01-01"
 AZURE_REQUIRED_ENVIRONMENT_VARIABLES = (
-    "EDGESENTINEL_TENANT_ID",
-    "EDGESENTINEL_CLIENT_ID",
-    "EDGESENTINEL_CLIENT_SECRET",
     "EDGESENTINEL_DCR_ENDPOINT",
     "EDGESENTINEL_DCR_IMMUTABLE_ID",
 )
@@ -44,9 +41,6 @@ def load_azure_configuration(environ: dict | None = None) -> dict:
         )
 
     return {
-        "tenant_id": environment["EDGESENTINEL_TENANT_ID"],
-        "client_id": environment["EDGESENTINEL_CLIENT_ID"],
-        "client_secret": environment["EDGESENTINEL_CLIENT_SECRET"],
         "endpoint": environment["EDGESENTINEL_DCR_ENDPOINT"].rstrip("/"),
         "dcr_immutable_id": environment["EDGESENTINEL_DCR_IMMUTABLE_ID"],
     }
@@ -55,14 +49,10 @@ def load_azure_configuration(environ: dict | None = None) -> dict:
 class AzureLogExporter:
     """Send normalized check records to Azure Monitor Logs."""
 
-    def __init__(self, configuration: dict, credential_factory=ClientSecretCredential):
+    def __init__(self, configuration: dict, credential_factory=None):
         self.endpoint = configuration["endpoint"].rstrip("/")
         self.dcr_immutable_id = configuration["dcr_immutable_id"]
-        self.credential = credential_factory(
-            tenant_id=configuration["tenant_id"],
-            client_id=configuration["client_id"],
-            client_secret=configuration["client_secret"],
-        )
+        self.credential = (credential_factory or DefaultAzureCredential)()
 
     @property
     def ingestion_url(self) -> str:

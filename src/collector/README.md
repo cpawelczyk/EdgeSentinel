@@ -69,12 +69,10 @@ Example output:
 
 The collector is local-only by default; Azure configuration is not needed unless `--azure` is supplied. With Azure enabled, normalized check records continue to print locally and are also sent to Azure Monitor Logs. Status-transition records remain local-only.
 
-Set these environment variables in the PowerShell session before starting the collector:
+Sign in locally with the Azure CLI, then set the DCR configuration variables in the same PowerShell session:
 
 ```powershell
-$env:EDGESENTINEL_TENANT_ID = "<tenant-id>"
-$env:EDGESENTINEL_CLIENT_ID = "<client-id>"
-$env:EDGESENTINEL_CLIENT_SECRET = "<client-secret>"
+az login --tenant <tenant-id>
 $env:EDGESENTINEL_DCR_ENDPOINT = "<logs-ingestion-endpoint>"
 $env:EDGESENTINEL_DCR_IMMUTABLE_ID = "<dcr-immutable-id>"
 ```
@@ -82,7 +80,7 @@ $env:EDGESENTINEL_DCR_IMMUTABLE_ID = "<dcr-immutable-id>"
 Run with Azure export enabled:
 
 ```powershell
-python src\collector\main.py --once --azure
+python src\collector\main.py --azure
 ```
 
-If Azure authentication or ingestion fails, the collector prints a concise warning and continues producing local telemetry.
+Azure export uses `DefaultAzureCredential`, which uses the cached Azure CLI developer credential after `az login`. No client secret is required for normal local development. If Azure authentication or ingestion fails, the collector prints a concise warning and continues producing local telemetry.
