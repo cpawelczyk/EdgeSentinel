@@ -1,0 +1,10 @@
+EdgeSentinel_CL
+| summarize arg_max(TimeGenerated, *) by deviceId
+| summarize
+    Devices = count(),
+    Online = countif(status == "online"),
+    Offline = countif(status == "offline"),
+    Unknown = countif(status == "unknown")
+    by Site = siteId
+| extend Availability = round(100.0 * Online / Devices, 1)
+| order by Site asc

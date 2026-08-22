@@ -1,0 +1,8 @@
+EdgeSentinel_CL
+| summarize arg_max(TimeGenerated, *) by deviceId
+| summarize
+    TotalDevices = count(),
+    Online = countif(status == "online"),
+    Offline = countif(status == "offline"),
+    Unknown = countif(status == "unknown")
+| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)
