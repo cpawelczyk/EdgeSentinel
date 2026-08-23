@@ -29,7 +29,19 @@ python -m pytest
 Invoke-RestMethod http://127.0.0.1:8000/components/detroit-panel-01/health
 ```
 
-## Change controller state
+## Control API
+
+The simulator exposes these localhost-only control endpoints:
+
+```text
+POST /components/{device_id}/fault
+POST /sites/{site_id}/fault
+POST /fleet/reset
+POST /fleet/randomize
+GET  /fleet/state
+```
+
+### Control an individual component
 
 Set the controller offline:
 
@@ -47,6 +59,48 @@ Invoke-RestMethod -Method Post `
   -Uri http://127.0.0.1:8000/components/detroit-panel-01/fault `
   -ContentType 'application/json' `
   -Body '{"status":"online","delaySeconds":1}'
+```
+
+Take a gateway offline. Its controllers retain their stored states, but their health endpoint returns HTTP 503 while the gateway remains offline:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8000/components/detroit-gateway-01/fault `
+  -ContentType 'application/json' `
+  -Body '{"status":"offline","delaySeconds":0}'
+```
+
+### Control a site
+
+Set a site's gateway and controllers offline together:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8000/sites/detroit/fault `
+  -ContentType 'application/json' `
+  -Body '{"status":"offline","delaySeconds":0}'
+```
+
+The simulated sites are `detroit`, `atlanta`, and `phoenix`. Site control does not affect the shared access-control or video-management servers.
+
+### Restore, randomize, and inspect the fleet
+
+Restore every component to `online` with no delay:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/fleet/reset
+```
+
+Generate one bounded, demo-friendly fault state. This is a one-shot update, not a background process:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/fleet/randomize
+```
+
+Retrieve the fleet read model, including stored state and `effectiveStatus`. A controller whose gateway is offline retains its stored status and reports `effectiveStatus` as `unreachable`:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/fleet/state
 ```
 
 ## Run the deterministic local scenario
@@ -69,4 +123,4 @@ It resets the Phoenix gateway and `phoenix-panel-03`, then applies a three-secon
 python src\simulator\run_scenario.py --step-delay 5
 ```
 
-This is a reproducible demonstration layer built from existing manual fault behavior. Randomized fleet behavior remains a separate future local enhancement.
+This is a reproducible demonstration layer built from existing manual fault behavior.
