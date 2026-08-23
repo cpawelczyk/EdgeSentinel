@@ -273,7 +273,7 @@ def test_azure_export_uses_default_credential_and_expected_ingestion_request(mon
         "failureReason": None,
     }
 
-    exporter.send(record)
+    exporter.send([record])
 
     assert created_with == {}
     assert credential.scopes == [(AZURE_MONITOR_SCOPE,)]
@@ -304,7 +304,7 @@ def test_azure_export_failures_are_non_fatal_and_do_not_expose_secrets(monkeypat
         monkeypatch.setattr("src.collector.main.httpx.post", post)
 
     exporter = AzureLogExporter(azure_configuration(), credential_factory=lambda **kwargs: credential)
-    exporter.send({"deviceId": "detroit-panel-01", "status": "online"}, output.append)
+    exporter.send([{"deviceId": "detroit-panel-01", "status": "online"}], output.append)
 
     assert len(output) == 1
     assert "warning" in output[0].lower()
@@ -466,8 +466,8 @@ def test_azure_export_sends_check_records_but_not_transitions():
     exported_records = []
 
     class Exporter:
-        def send(self, record, output):
-            exported_records.append(record)
+        def send(self, records, output):
+            exported_records.extend(records)
 
     run_pass(
         {"detroit-panel-01": "offline"},
@@ -479,6 +479,47 @@ def test_azure_export_sends_check_records_but_not_transitions():
 
     assert exported_records == [{"deviceId": "detroit-panel-01", "status": "online"}]
     assert json.loads(output[1])["eventType"] == "statusTransition"
+
+
+def test_azure_export_batches_a_complete_20_component_pass(monkeypatch):
+    credential = FakeCredential()
+    requests = []
+    inventory = [{**COMPONENT, "deviceId": f"component-{index}"} for index in range(20)]
+
+    class SuccessfulPostResponse:
+        def raise_for_status(self):
+            return None
+
+    def post(url, **kwargs):
+        requests.append((url, kwargs))
+        return SuccessfulPostResponse()
+
+    monkeypatch.setattr("src.collector.main.httpx.post", post)
+    exporter = AzureLogExporter(
+        azure_configuration(), credential_factory=lambda: credential
+    )
+
+    run_pass(
+        {},
+        inventory,
+        lambda component, threshold: {
+            "deviceId": component["deviceId"],
+            "status": "online",
+        },
+        azure_exporter=exporter,
+    )
+
+    assert credential.scopes == [(AZURE_MONITOR_SCOPE,)]
+    assert len(requests) == 1
+    _, request = requests[0]
+    assert request["json"] == [
+        {"deviceId": component["deviceId"], "status": "online"}
+        for component in inventory
+    ]
+    assert request["headers"] == {
+        "Authorization": "Bearer test-access-token",
+        "Content-Type": "application/json",
+    }
 
 
 @pytest.mark.parametrize(

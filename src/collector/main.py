@@ -61,8 +61,11 @@ class AzureLogExporter:
             f"{AZURE_STREAM_NAME}?api-version={AZURE_INGESTION_API_VERSION}"
         )
 
-    def send(self, record: dict, output=print) -> None:
-        """Send one check record, keeping Azure failures local and non-fatal."""
+    def send(self, records: list[dict], output=print) -> None:
+        """Send one completed collection batch, keeping Azure failures non-fatal."""
+        if not records:
+            return
+
         try:
             token = self.credential.get_token(AZURE_MONITOR_SCOPE)
         except Exception:
@@ -76,12 +79,12 @@ class AzureLogExporter:
                     "Authorization": f"Bearer {token.token}",
                     "Content-Type": "application/json",
                 },
-                json=[record],
+                json=records,
                 timeout=10.0,
             )
             response.raise_for_status()
         except Exception:
-            output("Azure export warning: failed to send telemetry to Azure.")
+            output("Azure export warning: failed to send telemetry batch to Azure.")
 
 
 def load_inventory(path: Path = DEFAULT_INVENTORY_PATH) -> list[dict]:
@@ -212,11 +215,11 @@ def run_pass(
     azure_exporter: AzureLogExporter | None = None,
 ) -> None:
     """Collect one record for every component and print status changes."""
+    records = []
     for component in inventory:
         record = collect(component, latency_threshold_ms)
+        records.append(record)
         output(json.dumps(record))
-        if azure_exporter is not None:
-            azure_exporter.send(record, output)
 
         previous_status = previous_statuses.get(record["deviceId"])
         if previous_status is not None:
@@ -225,6 +228,9 @@ def run_pass(
                 output(json.dumps(transition))
 
         previous_statuses[record["deviceId"]] = record["status"]
+
+    if azure_exporter is not None:
+        azure_exporter.send(records, output)
 
 
 def positive_interval(value: str) -> float:
