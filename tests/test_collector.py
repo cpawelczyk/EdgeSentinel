@@ -213,6 +213,7 @@ def test_azure_mode_requires_dcr_configuration_values(monkeypatch, capsys):
         "EDGESENTINEL_DCR_IMMUTABLE_ID",
     ):
         monkeypatch.delenv(variable, raising=False)
+    monkeypatch.setattr("src.collector.main.load_local_environment", lambda path: {})
 
     assert collector_main(["--azure", "--once"]) == 1
 
@@ -273,9 +274,9 @@ def test_missing_azure_configuration_keeps_the_existing_clear_error(tmp_path):
         load_azure_configuration({}, tmp_path / ".env")
 
 
-def test_azure_readiness_reports_missing_configuration():
+def test_azure_readiness_reports_missing_configuration(tmp_path):
     with pytest.raises(AzureConfigurationError, match="EDGESENTINEL_DCR_ENDPOINT"):
-        check_azure_readiness({})
+        check_azure_readiness({}, dotenv_path=tmp_path / ".env")
 
 
 def test_azure_readiness_reports_token_failure():

@@ -379,3 +379,90 @@ def test_event_log_does_not_touch_the_widget_after_shutdown_begins():
     MainWindow._log_event(window, "SIMULATOR", "Offline", "error")
 
     assert console.entries == []
+
+
+def test_fresh_console_state_does_not_start_fleet_polling_until_simulator_engagement():
+    window = SimpleNamespace(is_closing=False, simulator_engaged=False, refresh_in_flight=False)
+
+    MainWindow.refresh_fleet_state(window)
+
+    assert not hasattr(window, "_start_worker")
+
+
+def test_simulator_startup_failures_remain_starting_until_owned_process_is_ready():
+    state_changes = []
+    owned_process = object()
+    orchestrator = SimpleNamespace(
+        simulator_process=owned_process,
+        is_running=lambda process: process is owned_process,
+    )
+    window = SimpleNamespace(
+        is_closing=False,
+        refresh_in_flight=True,
+        simulator_state="starting",
+        simulator_indicator=object(),
+        orchestrator=orchestrator,
+        _set_status=lambda *args: state_changes.append(args),
+        _refresh_runtime_status=lambda: None,
+    )
+
+    MainWindow._fleet_state_failed(window, "Simulator request failed.")
+    assert state_changes == []
+
+    orchestrator.is_running = lambda process: False
+    MainWindow._fleet_state_failed(window, "Simulator request failed.")
+    assert state_changes[0][-2:] == ("offline", "Simulator request failed.")
+
+
+def test_azure_connected_click_transitions_to_logical_disconnected():
+    transitions = []
+    window = SimpleNamespace(
+        azure_state="connected",
+        azure_indicator=object(),
+        orchestrator=SimpleNamespace(collector_process=None, is_running=lambda process: False),
+        _set_status=lambda *args: transitions.append(args),
+    )
+
+    MainWindow.check_azure(window)
+
+    assert transitions[0][-2:] == ("disconnected", "Disconnected")
+
+
+def test_azure_disconnected_click_rechecks_readiness():
+    transitions = []
+    workers = []
+    window = SimpleNamespace(
+        azure_state="disconnected",
+        azure_indicator=object(),
+        _set_status=lambda *args: transitions.append(args),
+        _start_worker=lambda *args: workers.append(args),
+        _azure_readiness=lambda: None,
+        _azure_readiness_received=lambda result: None,
+        _azure_readiness_failed=lambda message: None,
+    )
+
+    MainWindow.check_azure(window)
+
+    assert transitions[0][-2:] == ("checking", "Checking readiness")
+    assert len(workers) == 1
+
+
+def test_azure_disconnect_is_refused_while_collector_is_running():
+    events = []
+    window = SimpleNamespace(
+        azure_state="connected",
+        azure_indicator=object(),
+        orchestrator=SimpleNamespace(collector_process=object(), is_running=lambda process: True),
+        _log_event=lambda *args: events.append(args),
+    )
+
+    MainWindow.check_azure(window)
+
+    assert events == [("AZURE", "Cannot disconnect while collector is running", "error")]
+
+
+def test_startup_event_has_no_initial_simulator_failure_noise():
+    log = EventLog(now=lambda: datetime(2026, 8, 23, 11, 42, 3))
+    log.record("SYSTEM", "Control Console started")
+
+    assert [entry.message for entry in log.entries] == ["Control Console started"]

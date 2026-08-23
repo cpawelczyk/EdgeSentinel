@@ -12,7 +12,7 @@ COLORS = {
     "online": "#54f08b", "degraded": "#ffc44d", "offline": "#ff6262",
     "unreachable": "#ff8352", "unknown": "#84909b", "starting": "#ffc44d",
     "checking": "#ffc44d", "connected": "#54f08b", "stale": "#ffc44d",
-    "error": "#ff6262",
+    "disconnected": "#84909b", "error": "#ff6262",
 }
 TECH_FONT = "Consolas"
 UI_FONT = "Segoe UI"
@@ -129,7 +129,7 @@ class StatusIndicator(MetalPanel):
         text = label or {
             "online": "ONLINE", "offline": "OFFLINE", "starting": "STARTING",
             "checking": "CHECKING", "connected": "CONNECTED", "stale": "STALE",
-            "error": "ERROR",
+            "disconnected": "DISCONNECTED", "error": "ERROR",
         }.get(state, "UNKNOWN")
         self.light.setStyleSheet(f"background: {color}; border-radius: 4px;")
         self.label.setText(f"{self.name}\n{text}")

@@ -62,6 +62,7 @@ class MainWindow(QMainWindow):
         self.azure_state = "unknown"
         self.simulator_state = "unknown"
         self.collector_state = "unknown"
+        self.simulator_engaged = False
         self.azure_batch_seen = False
         self.last_azure_batch_timestamp = None
         self.is_closing = False
@@ -86,11 +87,9 @@ class MainWindow(QMainWindow):
         self._update_composition()
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_fleet_state)
-        self.refresh_timer.start(self.REFRESH_INTERVAL_MS)
         self.runtime_timer = QTimer(self)
         self.runtime_timer.timeout.connect(self._refresh_runtime_status)
         self.runtime_timer.start(self.REFRESH_INTERVAL_MS)
-        QTimer.singleShot(0, self.refresh_fleet_state)
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -210,7 +209,7 @@ class MainWindow(QMainWindow):
             widget.setFixedHeight(topology_height)
 
     def refresh_fleet_state(self) -> None:
-        if self.is_closing or self.refresh_in_flight:
+        if self.is_closing or not self.simulator_engaged or self.refresh_in_flight:
             return
         self.refresh_in_flight = True
         self._start_worker(self.client.get_fleet_state, self._fleet_state_received, self._fleet_state_failed)
@@ -255,6 +254,8 @@ class MainWindow(QMainWindow):
         if self.is_closing:
             return
         self.refresh_in_flight = False
+        if self.simulator_state == "starting" and self.orchestrator.is_running(self.orchestrator.simulator_process):
+            return
         self._set_status("SIMULATOR", "simulator_state", self.simulator_indicator, "offline", message)
         self._refresh_runtime_status()
 
@@ -263,6 +264,7 @@ class MainWindow(QMainWindow):
             self.orchestrator.stop_simulator()
             self._set_status("SIMULATOR", "simulator_state", self.simulator_indicator, "offline", "Stopped")
             return
+        self.simulator_engaged = True
         self._set_status("SIMULATOR", "simulator_state", self.simulator_indicator, "starting", "Starting")
         self._start_worker(
             self.client.get_fleet_state,
@@ -272,6 +274,7 @@ class MainWindow(QMainWindow):
 
     def _external_simulator_detected(self) -> None:
         self._set_status("SIMULATOR", "simulator_state", self.simulator_indicator, "online", "Online (external)")
+        self._begin_simulator_monitoring()
 
     def _start_simulator(self) -> None:
         try:
@@ -280,8 +283,20 @@ class MainWindow(QMainWindow):
             self._set_status("SIMULATOR", "simulator_state", self.simulator_indicator, "error", "Unable to start")
             return
         self._set_status("SIMULATOR", "simulator_state", self.simulator_indicator, "starting", "Starting")
+        self._begin_simulator_monitoring()
+
+    def _begin_simulator_monitoring(self) -> None:
+        if not self.refresh_timer.isActive():
+            self.refresh_timer.start(self.REFRESH_INTERVAL_MS)
+        self.refresh_fleet_state()
 
     def check_azure(self) -> None:
+        if self.azure_state == "connected":
+            if self.orchestrator.is_running(self.orchestrator.collector_process):
+                self._log_event("AZURE", "Cannot disconnect while collector is running", "error")
+                return
+            self._set_status("AZURE", "azure_state", self.azure_indicator, "disconnected", "Disconnected")
+            return
         self._set_status("AZURE", "azure_state", self.azure_indicator, "checking", "Checking readiness")
         self._start_worker(self._azure_readiness, self._azure_readiness_received, self._azure_readiness_failed)
 
