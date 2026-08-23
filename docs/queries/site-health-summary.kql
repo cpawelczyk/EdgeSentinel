@@ -3,6 +3,7 @@ EdgeSentinel_CL
 | summarize
     Devices = count(),
     Online = countif(status == "online"),
+    Degraded = countif(status == "degraded"),
     Offline = countif(status == "offline"),
     Unknown = countif(status == "unknown")
     by Site = siteId

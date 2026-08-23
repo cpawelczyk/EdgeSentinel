@@ -1,0 +1,444 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "<div style=\"text-align:center;\"><h1>Edge Sentinel — Fleet Health</h1><p>Real-time operational health and availability of the simulated edge infrastructure fleet.</p></div>"
+      },
+      "customWidth": "100",
+      "name": "text-workbook-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "stat",
+        "tileSettings": {
+          "showBorder": false
+        },
+        "statSettings": {
+          "valueField": "TotalDevices",
+          "valueAggregation": "None",
+          "colorSettings": {
+            "type": "static",
+            "mode": "background",
+            "heatmapPalette": "greenRed",
+            "thresholdsGrid": []
+          },
+          "iconSettings": {
+            "thresholdsGrid": []
+          },
+          "tagText": "TOTAL DEVICES",
+          "valueFontStyle": "auto"
+        }
+      },
+      "customWidth": "16",
+      "name": "kpi-total-devices"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "stat",
+        "tileSettings": {
+          "showBorder": false
+        },
+        "statSettings": {
+          "valueField": "Online",
+          "valueAggregation": "None",
+          "colorSettings": {
+            "type": "static",
+            "mode": "background",
+            "heatmapPalette": "greenRed",
+            "thresholdsGrid": []
+          },
+          "iconSettings": {
+            "thresholdsGrid": []
+          },
+          "tagText": "ONLINE",
+          "valueFontStyle": "auto"
+        }
+      },
+      "customWidth": "16",
+      "name": "kpi-online"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "stat",
+        "tileSettings": {
+          "showBorder": false
+        },
+        "statSettings": {
+          "valueField": "Degraded",
+          "valueAggregation": "None",
+          "colorSettings": {
+            "type": "static",
+            "mode": "background",
+            "heatmapPalette": "greenRed",
+            "thresholdsGrid": []
+          },
+          "iconSettings": {
+            "thresholdsGrid": []
+          },
+          "tagText": "DEGRADED",
+          "valueFontStyle": "auto"
+        }
+      },
+      "customWidth": "16",
+      "name": "kpi-degraded"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "stat",
+        "tileSettings": {
+          "showBorder": false
+        },
+        "statSettings": {
+          "valueField": "Offline",
+          "valueAggregation": "None",
+          "colorSettings": {
+            "type": "static",
+            "mode": "background",
+            "heatmapPalette": "greenRed",
+            "thresholdsGrid": []
+          },
+          "iconSettings": {
+            "thresholdsGrid": []
+          },
+          "tagText": "OFFLINE",
+          "valueFontStyle": "auto"
+        }
+      },
+      "customWidth": "16",
+      "name": "kpi-offline"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "stat",
+        "tileSettings": {
+          "showBorder": false
+        },
+        "statSettings": {
+          "valueField": "Unknown",
+          "valueAggregation": "None",
+          "colorSettings": {
+            "type": "static",
+            "mode": "background",
+            "heatmapPalette": "greenRed",
+            "thresholdsGrid": []
+          },
+          "iconSettings": {
+            "thresholdsGrid": []
+          },
+          "tagText": "UNKNOWN",
+          "valueFontStyle": "auto"
+        }
+      },
+      "customWidth": "16",
+      "name": "kpi-unknown"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "stat",
+        "tileSettings": {
+          "showBorder": false
+        },
+        "statSettings": {
+          "valueField": "AvailabilityPct",
+          "valueAggregation": "None",
+          "colorSettings": {
+            "type": "static",
+            "mode": "background",
+            "heatmapPalette": "greenRed",
+            "thresholdsGrid": []
+          },
+          "iconSettings": {
+            "thresholdsGrid": []
+          },
+          "numberFormatSettings": {
+            "unit": 1,
+            "options": {
+              "style": "decimal",
+              "minimumFractionDigits": 0,
+              "maximumFractionDigits": 1
+            }
+          },
+          "tagText": "AVAILABILITY",
+          "valueFontStyle": "auto"
+        }
+      },
+      "customWidth": "16",
+      "name": "kpi-availability"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Site Availability\r\n\r\nCurrent device health and availability by simulated site."
+      },
+      "name": "text-site-availability"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    Devices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n    by Site = siteId\r\n| extend Availability = round(100.0 * Online / Devices, 1)\r\n| order by Site asc",
+        "size": 1,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "AvailabilityPct",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 1,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "Availability",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "<",
+                    "thresholdValue": "90",
+                    "representation": "3",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  }
+                ]
+              },
+              "numberFormat": {
+                "unit": 1,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 1
+                }
+              }
+            }
+          ]
+        }
+      },
+      "name": "site-availability"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Active Issues\r\nCurrent devices requiring attention"
+      },
+      "customWidth": "50",
+      "name": "text-active-issues"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Fleet Availability Over Time\r\nHistorical percentage of simulated edge devices reporting online."
+      },
+      "customWidth": "50",
+      "name": "text-fleet-availability-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| where status != \"online\"\r\n| project\r\n    Device = deviceId,\r\n    Site = siteId,\r\n    Type = componentType,\r\n    Status = status,\r\n    Reason = failureReason,\r\n    [\"Latency (ms)\"] = round(todouble(latencyMs), 1),\r\n    [\"Last Reported\"] = TimeGenerated\r\n| order by Site asc, Device asc",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "offline",
+                    "representation": "3",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "unknown",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "degraded",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "active-issues"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| where TimeGenerated >= ago(30m)\r\n| summarize\r\n    TotalDevices = dcount(deviceId),\r\n    OnlineDevices = dcountif(deviceId, status == \"online\")\r\n    by bin(TimeGenerated, 1m)\r\n| where TotalDevices >= 10\r\n| extend AvailabilityPct =\r\n    round(100.0 * OnlineDevices / TotalDevices, 1)\r\n| project TimeGenerated, AvailabilityPct\r\n| order by TimeGenerated asc",
+        "size": 0,
+        "aggregation": 5,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart",
+        "chartSettings": {
+          "showMetrics": false,
+          "ySettings": {
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      "customWidth": "50",
+      "name": "fleet-availability-trend"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Fleet Device Inventory\r\n\r\nCurrent status and telemetry for all simulated edge devices across the fleet."
+      },
+      "name": "text-fleet-inventory"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| project\r\n    Device = deviceId,\r\n    Site = siteId,\r\n    Type = componentType,\r\n    Status = status,\r\n    [\"Latency (ms)\"] = round(todouble(latencyMs), 1),\r\n    [\"Last Reported\"] = TimeGenerated\r\n| order by Site asc, Device asc",
+        "size": 0,
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "offline",
+                    "representation": "3",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "unknown",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "degraded",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "fleet-inventory"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

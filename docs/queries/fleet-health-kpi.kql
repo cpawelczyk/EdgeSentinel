@@ -3,6 +3,7 @@ EdgeSentinel_CL
 | summarize
     TotalDevices = count(),
     Online = countif(status == "online"),
+    Degraded = countif(status == "degraded"),
     Offline = countif(status == "offline"),
     Unknown = countif(status == "unknown")
 | extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)
