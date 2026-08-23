@@ -1,0 +1,18 @@
+AlertsManagementResources
+| where type =~ "microsoft.alertsmanagement/alerts"
+| where name == "Edge Sentinel - Unhealthy Device Detected"
+| extend
+    Severity = tostring(properties.essentials.severity),
+    MonitorCondition = tostring(properties.essentials.monitorCondition),
+    TargetResource = tostring(properties.essentials.targetResourceName),
+    FiredTime = todatetime(properties.essentials.startDateTime),
+    LastUpdated = todatetime(properties.essentials.lastModifiedDateTime)
+| where MonitorCondition =~ "Fired"
+| order by FiredTime desc
+| project
+    Alert = name,
+    Severity,
+    Condition = MonitorCondition,
+    ['Affected Resource'] = TargetResource,
+    ['Fired Time'] = format_datetime(datetime_utc_to_local(FiredTime, 'America/New_York'), 'M/d/yyyy h:mm tt'),
+    ['Last Updated'] = format_datetime(datetime_utc_to_local(LastUpdated, 'America/New_York'), 'M/d/yyyy h:mm tt')
