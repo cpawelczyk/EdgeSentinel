@@ -3,6 +3,7 @@ import pytest
 
 from src.control_console.api import SimulatorApiError, SimulatorClient
 from src.control_console.models import DeviceState, FleetState, visual_status
+from src.control_console.widgets import node_style, site_health, status_color
 
 
 def component_payload(device_id="detroit-panel-01", status="online", effective_status="online"):
@@ -38,6 +39,35 @@ def test_fleet_state_mapping_preserves_stored_and_effective_status():
 )
 def test_status_to_visual_state(status, effective_status, expected):
     assert visual_status(status, effective_status) == expected
+
+
+def test_selected_node_has_a_separate_treatment_without_losing_health_color():
+    selected = node_style("offline", True)
+    unselected = node_style("offline", False)
+
+    assert selected["health_color"] == status_color("offline")
+    assert unselected["health_color"] == status_color("offline")
+    assert selected["selection_color"] == "#e6edf2"
+    assert selected["selection_width"] > 0
+    assert unselected["selection_width"] == 0
+
+
+def test_individual_controller_failure_makes_the_site_degraded_not_offline():
+    devices = (
+        DeviceState("detroit-gateway-01", "detroit", "gateway", "online", 0, "online"),
+        DeviceState("detroit-panel-01", "detroit", "controller", "offline", 0, "offline"),
+    )
+
+    assert site_health(devices) == ("degraded", "DEGRADED")
+
+
+def test_gateway_failure_makes_the_site_offline_and_preserves_unreachable_controller_state():
+    devices = (
+        DeviceState("detroit-gateway-01", "detroit", "gateway", "offline", 0, "offline"),
+        DeviceState("detroit-panel-01", "detroit", "controller", "online", 0, "unreachable"),
+    )
+
+    assert site_health(devices) == ("offline", "OFFLINE")
 
 
 def test_invalid_fleet_state_is_rejected():

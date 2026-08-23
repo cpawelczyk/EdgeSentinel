@@ -2,12 +2,12 @@
 
 import sys
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
 from .api import SimulatorApiError, SimulatorClient
 from .models import DeviceState, FleetState, SITE_IDS
-from .widgets import DeviceNode, InspectorPanel, SiteTopologyWidget, StatusIndicator
+from .widgets import DeviceNode, InspectorPanel, MetalPanel, SiteTopologyWidget, StatusIndicator
 
 
 class WorkerSignals(QObject):
@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.client = simulator_client or SimulatorClient()
         self.thread_pool = QThreadPool.globalInstance()
+        self.active_workers = set()
         self.refresh_in_flight = False
         self.fleet_state: FleetState | None = None
         self.selected_device_id: str | None = None
@@ -46,9 +47,14 @@ class MainWindow(QMainWindow):
         self.shared_nodes: dict[str, DeviceNode] = {}
 
         self.setWindowTitle("Edge Sentinel Control Console")
-        self.resize(1320, 780)
-        self.setMinimumSize(1000, 620)
+        self.setMinimumSize(1320, 650)
+        available = self.screen().availableGeometry()
+        self.resize(
+            min(1540, max(self.minimumWidth(), int(available.width() * 0.88))),
+            min(780, max(self.minimumHeight(), int(available.height() * 0.72))),
+        )
         self._build_ui()
+        self._update_composition()
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self.refresh_fleet_state)
         self.refresh_timer.start(self.REFRESH_INTERVAL_MS)
@@ -56,21 +62,30 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         root = QWidget()
+        root.setObjectName("consoleRoot")
         root.setStyleSheet(
-            "QWidget { background: #0b0f12; color: #d6dde2; font-family: Segoe UI, sans-serif; }"
-            "QPushButton { background: #1a2228; border: 1px solid #46535d; padding: 7px 9px; "
-            "font-size: 10px; font-weight: 700; }"
-            "QPushButton:hover { background: #273139; border-color: #8da1ad; }"
-            "QPushButton:disabled { color: #66727b; border-color: #303941; }"
+            "QWidget#consoleRoot { background: #0d0e0f; color: #d8d8d8; font-family: Segoe UI, sans-serif; }"
+            "QLabel { background: transparent; }"
+            "QPushButton { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #323334, stop:0.45 #202122, stop:1 #151617); "
+            "border: 1px solid #5c5e60; border-radius: 5px; padding: 7px 10px; font-family: Segoe UI; font-size: 10px; font-weight: 600; }"
+            "QPushButton:hover { border-color: #d0d1d2; background: #353637; }"
+            "QPushButton:pressed { background: #141516; padding-top: 8px; padding-bottom: 6px; }"
+            "QPushButton:disabled { color: #777879; border-color: #3c3d3e; background: #18191a; }"
+            "QPushButton[controlStatus='online'] { color: #b5d2bb; }"
+            "QPushButton[controlStatus='degraded'] { color: #d8c18a; }"
+            "QPushButton[controlStatus='offline'] { color: #dfa0a0; }"
         )
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(12)
 
-        header = QHBoxLayout()
+        header_panel = MetalPanel(10, "strip")
+        header = QHBoxLayout(header_panel)
+        header.setContentsMargins(18, 10, 14, 10)
+        header.setSpacing(8)
         title = QLabel("EDGE SENTINEL  /  CONTROL CONSOLE")
-        title.setStyleSheet("font-size: 14px; font-weight: 800; letter-spacing: 2px;")
+        title.setStyleSheet("font-family: Segoe UI; font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #e2e2e2;")
         header.addWidget(title)
         header.addSpacing(20)
         self.simulator_indicator = StatusIndicator("SIMULATOR")
@@ -81,12 +96,18 @@ class MainWindow(QMainWindow):
         header.addWidget(self.azure_indicator)
         header.addStretch()
         reset_button = QPushButton("RESET FLEET")
+        reset_button.setFixedHeight(38)
         reset_button.clicked.connect(lambda: self._run_control(self.client.reset_fleet))
         randomize_button = QPushButton("RANDOMIZE")
+        randomize_button.setFixedHeight(38)
         randomize_button.clicked.connect(lambda: self._run_control(self.client.randomize_fleet))
         header.addWidget(reset_button)
         header.addWidget(randomize_button)
-        layout.addLayout(header)
+        layout.addWidget(header_panel)
+
+        self.composition_spacer = QWidget()
+        self.composition_spacer.setFixedHeight(0)
+        layout.addWidget(self.composition_spacer)
 
         content = QHBoxLayout()
         topology_area = QVBoxLayout()
@@ -96,34 +117,69 @@ class MainWindow(QMainWindow):
             widget = SiteTopologyWidget(site_id)
             widget.node_selected.connect(self.select_device)
             self.site_widgets[site_id] = widget
-            sites.addWidget(widget, 1)
-        topology_area.addLayout(sites, 1)
+            sites.addWidget(widget, 1, Qt.AlignmentFlag.AlignTop)
+        topology_area.addLayout(sites)
 
-        shared_title = QLabel("SHARED SERVICES")
-        shared_title.setStyleSheet("font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #84909b;")
-        topology_area.addWidget(shared_title)
+        shared_panel = MetalPanel(10, "rack")
+        shared_box = QVBoxLayout(shared_panel)
+        shared_box.setContentsMargins(14, 10, 14, 10)
+        shared_box.setSpacing(8)
+        shared_title = QLabel("SHARED INFRASTRUCTURE")
+        shared_title.setStyleSheet("font-family: Segoe UI; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #c9c9c9;")
+        shared_box.addWidget(shared_title)
         self.shared_layout = QHBoxLayout()
         self.shared_layout.setSpacing(10)
         self.shared_layout.addStretch()
-        topology_area.addLayout(self.shared_layout)
+        shared_box.addLayout(self.shared_layout)
+        topology_area.addWidget(shared_panel)
+        topology_area.addStretch()
         content.addLayout(topology_area, 1)
 
         self.inspector = InspectorPanel()
         self.inspector.action_requested.connect(self.set_component_status)
         self.inspector.site_action_requested.connect(self.set_site_status)
         content.addWidget(self.inspector)
-        layout.addLayout(content, 1)
+        layout.addLayout(content)
+        layout.addStretch()
         self.feedback = QLabel("Connecting to simulator…")
-        self.feedback.setStyleSheet("font-size: 10px; color: #84909b;")
+        self.feedback.setStyleSheet("font-family: Consolas; font-size: 10px; color: #a6a7a8;")
         layout.addWidget(self.feedback)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._update_composition()
+
+    def _update_composition(self) -> None:
+        if not self.site_widgets:
+            return
+        extra_height = max(0, self.height() - 850)
+        topology_height = 390 + min(100, int(extra_height * 0.4))
+        composition_gap = min(52, int(extra_height * 0.22))
+        self.composition_spacer.setFixedHeight(composition_gap)
+        for widget in self.site_widgets.values():
+            widget.setFixedHeight(topology_height)
 
     def refresh_fleet_state(self) -> None:
         if self.refresh_in_flight:
             return
         self.refresh_in_flight = True
-        worker = ApiWorker(self.client.get_fleet_state)
-        worker.signals.completed.connect(self._fleet_state_received)
-        worker.signals.failed.connect(self._fleet_state_failed)
+        self._start_worker(self.client.get_fleet_state, self._fleet_state_received, self._fleet_state_failed)
+
+    def _start_worker(self, action, completed, failed) -> None:
+        """Keep worker signal objects alive until their background request finishes."""
+        worker = ApiWorker(action)
+        self.active_workers.add(worker)
+
+        def on_completed(result) -> None:
+            self.active_workers.discard(worker)
+            completed(result)
+
+        def on_failed(message: str) -> None:
+            self.active_workers.discard(worker)
+            failed(message)
+
+        worker.signals.completed.connect(on_completed)
+        worker.signals.failed.connect(on_failed)
         self.thread_pool.start(worker)
 
     def _fleet_state_received(self, fleet_state: FleetState) -> None:
@@ -172,10 +228,7 @@ class MainWindow(QMainWindow):
 
     def _run_control(self, action) -> None:
         self.feedback.setText("Sending simulator control action…")
-        worker = ApiWorker(action)
-        worker.signals.completed.connect(lambda result: self.refresh_fleet_state())
-        worker.signals.failed.connect(self._control_failed)
-        self.thread_pool.start(worker)
+        self._start_worker(action, lambda result: self.refresh_fleet_state(), self._control_failed)
 
     def _control_failed(self, message: str) -> None:
         self.feedback.setText(message)
