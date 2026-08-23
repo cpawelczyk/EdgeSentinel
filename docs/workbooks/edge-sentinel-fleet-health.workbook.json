@@ -224,6 +224,45 @@
     {
       "type": 1,
       "content": {
+        "json": "## Active Azure Monitor Alerts\r\n\r\nCurrently fired operational alerts requiring attention across the Edge Sentinel fleet."
+      },
+      "name": "text-azure-monitor-alerts"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "AlertsManagementResources\r\n| where type =~ \"microsoft.alertsmanagement/alerts\"\r\n| where name == \"Edge Sentinel - Unhealthy Device Detected\"\r\n| extend\r\n    Severity = tostring(properties.essentials.severity),\r\n    MonitorCondition = tostring(properties.essentials.monitorCondition),\r\n    TargetResource = tostring(properties.essentials.targetResourceName),\r\n    FiredTime = todatetime(properties.essentials.startDateTime),\r\n    LastUpdated = todatetime(properties.essentials.lastModifiedDateTime)\r\n| where MonitorCondition =~ \"Fired\"\r\n| order by FiredTime desc\r\n| project\r\n    Alert = name,\r\n    Severity,\r\n    Condition = MonitorCondition,\r\n    ['Affected Resource'] = TargetResource,\r\n    ['Fired Time'] = format_datetime(datetime_utc_to_local(FiredTime, 'America/New_York'), 'M/d/yyyy h:mm tt'),\r\n    ['Last Updated'] = format_datetime(datetime_utc_to_local(LastUpdated, 'America/New_York'), 'M/d/yyyy h:mm tt')",
+        "size": 4,
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Fired Time",
+              "formatter": 6,
+              "dateFormat": {
+                "showUtcTime": null,
+                "formatName": "shortDateTimeNoMsPattern"
+              }
+            },
+            {
+              "columnMatch": "Last Updated",
+              "formatter": 6,
+              "dateFormat": {
+                "showUtcTime": null,
+                "formatName": "shortDateTimeNoMsPattern"
+              }
+            }
+          ]
+        }
+      },
+      "name": "azure-monitor-alerts"
+    },
+    {
+      "type": 1,
+      "content": {
         "json": "## Site Availability\r\n\r\nCurrent device health and availability by simulated site."
       },
       "name": "text-site-availability"
