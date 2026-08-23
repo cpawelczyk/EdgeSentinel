@@ -2,14 +2,17 @@
 
 from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QLinearGradient, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QVBoxLayout
 
 from .models import DeviceState
+from .events import EventEntry
 
 
 COLORS = {
     "online": "#54f08b", "degraded": "#ffc44d", "offline": "#ff6262",
-    "unreachable": "#ff8352", "unknown": "#84909b",
+    "unreachable": "#ff8352", "unknown": "#84909b", "starting": "#ffc44d",
+    "checking": "#ffc44d", "connected": "#54f08b", "stale": "#ffc44d",
+    "error": "#ff6262",
 }
 TECH_FONT = "Consolas"
 UI_FONT = "Segoe UI"
@@ -102,10 +105,14 @@ class MetalPanel(QFrame):
 
 
 class StatusIndicator(MetalPanel):
+    clicked = Signal()
+
     def __init__(self, name: str):
         super().__init__(6, "strip")
         self.name = name
+        self._pressed = False
         self.setFixedHeight(48)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(7)
@@ -117,11 +124,72 @@ class StatusIndicator(MetalPanel):
         layout.addWidget(self.label)
         self.set_state("unknown")
 
-    def set_state(self, state: str) -> None:
+    def set_state(self, state: str, label: str | None = None) -> None:
         color = status_color(state)
-        text = "ONLINE" if state == "online" else "OFFLINE" if state == "offline" else "UNKNOWN"
+        text = label or {
+            "online": "ONLINE", "offline": "OFFLINE", "starting": "STARTING",
+            "checking": "CHECKING", "connected": "CONNECTED", "stale": "STALE",
+            "error": "ERROR",
+        }.get(state, "UNKNOWN")
         self.light.setStyleSheet(f"background: {color}; border-radius: 4px;")
         self.label.setText(f"{self.name}\n{text}")
+
+    def enterEvent(self, event) -> None:
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._pressed = False
+        self.update()
+        super().leaveEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._pressed = True
+            self.update()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        was_pressed = self._pressed
+        self._pressed = False
+        self.update()
+        if was_pressed and event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if self.underMouse():
+            painter = QPainter(self)
+            overlay = QColor(255, 255, 255, 16 if not self._pressed else 5)
+            painter.fillRect(self.rect(), overlay)
+
+
+class EventConsole(MetalPanel):
+    """A compact, read-only event surface for operator-facing activity."""
+
+    def __init__(self):
+        super().__init__(8, "inspector")
+        self.setFixedHeight(118)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
+        title = QLabel("EVENT LOG")
+        title.setStyleSheet(f"font-family: {UI_FONT}; font-size: 9px; font-weight: 700; letter-spacing: 1px; color: #b7b9ba;")
+        layout.addWidget(title)
+        self.output = QPlainTextEdit()
+        self.output.setReadOnly(True)
+        self.output.setMaximumBlockCount(200)
+        self.output.setStyleSheet(
+            f"background: #0c0d0e; border: 1px solid #3e4042; color: #bfc5c7; "
+            f"font-family: {TECH_FONT}; font-size: 10px; padding: 3px;"
+        )
+        layout.addWidget(self.output)
+
+    def append(self, entry: EventEntry) -> None:
+        self.output.appendPlainText(entry.text)
+        scrollbar = self.output.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
 
 class DeviceNode(QFrame):

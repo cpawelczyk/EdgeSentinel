@@ -13,6 +13,7 @@ from azure.identity import DefaultAzureCredential
 
 
 DEFAULT_INVENTORY_PATH = Path(__file__).with_name("inventory.json")
+DEFAULT_ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
 DEFAULT_LATENCY_THRESHOLD_MS = 2000.0
 AZURE_STREAM_NAME = "Custom-EdgeSentinel"
 AZURE_MONITOR_SCOPE = "https://monitor.azure.com/.default"
@@ -31,9 +32,42 @@ class AzureConfigurationError(Exception):
     """Raised when Azure export configuration is incomplete."""
 
 
-def load_azure_configuration(environ: dict | None = None) -> dict:
+def load_local_environment(path: Path = DEFAULT_ENV_FILE_PATH) -> dict[str, str]:
+    """Read simple key/value configuration from the project-local .env file."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return {}
+
+    values = {}
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = name.strip()
+        value = value.strip().strip('"').strip("'")
+        if name in AZURE_REQUIRED_ENVIRONMENT_VARIABLES:
+            values[name] = value
+    return values
+
+
+def resolve_azure_environment(
+    environ: dict | None = None, dotenv_path: Path = DEFAULT_ENV_FILE_PATH
+) -> dict:
+    """Resolve Azure settings without overwriting explicit process environment values."""
+    environment = dict(os.environ if environ is None else environ)
+    for name, value in load_local_environment(dotenv_path).items():
+        if not environment.get(name):
+            environment[name] = value
+    return environment
+
+
+def load_azure_configuration(
+    environ: dict | None = None, dotenv_path: Path = DEFAULT_ENV_FILE_PATH
+) -> dict:
     """Load the Azure export settings required by the Logs Ingestion API."""
-    environment = os.environ if environ is None else environ
+    environment = resolve_azure_environment(environ, dotenv_path)
     missing = [name for name in AZURE_REQUIRED_ENVIRONMENT_VARIABLES if not environment.get(name)]
     if missing:
         raise AzureConfigurationError(
@@ -61,16 +95,16 @@ class AzureLogExporter:
             f"{AZURE_STREAM_NAME}?api-version={AZURE_INGESTION_API_VERSION}"
         )
 
-    def send(self, records: list[dict], output=print) -> None:
+    def send(self, records: list[dict], output=print) -> bool:
         """Send one completed collection batch, keeping Azure failures non-fatal."""
         if not records:
-            return
+            return True
 
         try:
             token = self.credential.get_token(AZURE_MONITOR_SCOPE)
         except Exception:
             output("Azure export warning: failed to acquire Azure access token.")
-            return
+            return False
 
         try:
             response = httpx.post(
@@ -83,8 +117,28 @@ class AzureLogExporter:
                 timeout=10.0,
             )
             response.raise_for_status()
+            return True
         except Exception:
             output("Azure export warning: failed to send telemetry batch to Azure.")
+            return False
+
+
+def check_azure_readiness(
+    environ: dict | None = None,
+    credential_factory=None,
+    dotenv_path: Path = DEFAULT_ENV_FILE_PATH,
+) -> None:
+    """Verify the configured credential can access the Azure Monitor scope."""
+    load_azure_configuration(environ, dotenv_path)
+    credential = (credential_factory or DefaultAzureCredential)()
+    credential.get_token(AZURE_MONITOR_SCOPE)
+
+
+def write_status_file(path: Path, status: dict) -> None:
+    """Atomically publish collector activity for a local process supervisor."""
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    temporary_path.write_text(json.dumps(status), encoding="utf-8")
+    temporary_path.replace(path)
 
 
 def load_inventory(path: Path = DEFAULT_INVENTORY_PATH) -> list[dict]:
@@ -213,6 +267,7 @@ def run_pass(
     output=print,
     latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS,
     azure_exporter: AzureLogExporter | None = None,
+    status_file: Path | None = None,
 ) -> None:
     """Collect one record for every component and print status changes."""
     records = []
@@ -229,8 +284,21 @@ def run_pass(
 
         previous_statuses[record["deviceId"]] = record["status"]
 
+    azure_success = None
     if azure_exporter is not None:
-        azure_exporter.send(records, output)
+        azure_success = azure_exporter.send(records, output)
+
+    if status_file is not None:
+        completed_at = datetime.now(timezone.utc).isoformat()
+        status = {"lastSuccessfulPass": completed_at}
+        if azure_success:
+            status["lastAzureIngestion"] = completed_at
+        elif azure_success is False:
+            status["lastAzureFailure"] = completed_at
+        try:
+            write_status_file(status_file, status)
+        except OSError:
+            output("Collector warning: failed to write runtime status.")
 
 
 def positive_interval(value: str) -> float:
@@ -254,6 +322,11 @@ def parse_arguments(arguments: list[str] | None = None) -> argparse.Namespace:
         "--azure",
         action="store_true",
         help="Also send normalized check records to Azure Monitor Logs.",
+    )
+    parser.add_argument(
+        "--status-file",
+        type=Path,
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--inventory",
@@ -285,6 +358,7 @@ def run_collector(
     sleep=time.sleep,
     latency_threshold_ms: float = DEFAULT_LATENCY_THRESHOLD_MS,
     azure_exporter: AzureLogExporter | None = None,
+    status_file: Path | None = None,
 ) -> None:
     previous_statuses = {}
 
@@ -297,6 +371,7 @@ def run_collector(
                 output,
                 latency_threshold_ms,
                 azure_exporter,
+                status_file,
             )
             if once:
                 return
@@ -324,6 +399,8 @@ def main(arguments: list[str] | None = None) -> int:
     collector_arguments = {
         "latency_threshold_ms": args.latency_threshold_ms,
     }
+    if args.status_file is not None:
+        collector_arguments["status_file"] = args.status_file
     if azure_exporter is not None:
         collector_arguments["azure_exporter"] = azure_exporter
     run_collector(args.once, args.interval, inventory, **collector_arguments)

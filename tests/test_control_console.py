@@ -1,9 +1,21 @@
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
 from src.control_console.api import SimulatorApiError, SimulatorClient
 from src.control_console.models import DeviceState, FleetState, visual_status
 from src.control_console.widgets import node_style, site_health, status_color
+from src.control_console.orchestration import (
+    RuntimeOrchestrator,
+    azure_runtime_state,
+    collector_runtime_state,
+    collector_start_blocker,
+    is_recent,
+)
+from src.control_console.main import ApiWorker, MainWindow, emit_worker_signal
+from src.control_console.events import EventLog
 
 
 def component_payload(device_id="detroit-panel-01", status="online", effective_status="online"):
@@ -137,3 +149,233 @@ def test_global_control_requests_use_correct_endpoints(monkeypatch, method_name,
     assert observed["method"] == "POST"
     assert observed["url"] == f"http://127.0.0.1:8000{expected_path}"
     assert observed["json"] is None
+
+
+class FakeProcess:
+    def __init__(self):
+        self.running = True
+        self.terminated = False
+        self.killed = False
+
+    def poll(self):
+        return None if self.running else 0
+
+    def terminate(self):
+        self.terminated = True
+        self.running = False
+
+    def wait(self, timeout):
+        return 0
+
+    def kill(self):
+        self.killed = True
+        self.running = False
+
+
+def test_runtime_orchestrator_stops_only_gui_owned_processes(tmp_path):
+    created = []
+
+    def create(*args, **kwargs):
+        process = FakeProcess()
+        created.append(process)
+        return process
+
+    orchestrator = RuntimeOrchestrator(tmp_path, process_factory=create)
+    external_simulator = FakeProcess()
+
+    orchestrator.stop_simulator()
+    assert not external_simulator.terminated
+
+    owned_simulator = orchestrator.start_simulator()
+    owned_collector = orchestrator.start_collector()
+    orchestrator.shutdown()
+
+    assert owned_simulator.terminated
+    assert owned_collector.terminated
+    assert len(created) == 2
+
+
+def test_runtime_orchestrator_uses_collector_heartbeat_for_recent_status(tmp_path):
+    orchestrator = RuntimeOrchestrator(tmp_path, process_factory=lambda *args, **kwargs: FakeProcess())
+    recent = datetime.now(timezone.utc).isoformat()
+    stale = (datetime.now(timezone.utc) - timedelta(seconds=9)).isoformat()
+    orchestrator.status_file.write_text(
+        '{"lastSuccessfulPass": "%s", "lastAzureIngestion": "%s"}' % (recent, stale),
+        encoding="utf-8",
+    )
+
+    status = orchestrator.collector_status()
+    assert is_recent(status["lastSuccessfulPass"])
+    assert not is_recent(status["lastAzureIngestion"])
+
+
+def test_collector_start_requires_simulator_then_azure_readiness():
+    assert collector_start_blocker(False, False) == "Start simulator first."
+    assert collector_start_blocker(True, False) == "Validate Azure connection first."
+    assert collector_start_blocker(True, True) is None
+
+
+def test_runtime_states_follow_recent_collector_and_azure_heartbeat():
+    recent = datetime.now(timezone.utc).isoformat()
+    stale = (datetime.now(timezone.utc) - timedelta(seconds=9)).isoformat()
+
+    assert collector_runtime_state({}) == "starting"
+    assert collector_runtime_state({"lastSuccessfulPass": stale}) == "stale"
+    assert collector_runtime_state({"lastSuccessfulPass": recent}) == "online"
+    assert azure_runtime_state({"lastAzureIngestion": recent}) == "connected"
+    assert azure_runtime_state({"lastAzureIngestion": stale}) == "stale"
+    assert azure_runtime_state({"lastAzureIngestion": recent, "lastAzureFailure": recent}) == "error"
+
+
+class DeletedSignal:
+    def emit(self, value):
+        raise RuntimeError("Signal source has been deleted")
+
+
+def test_in_flight_worker_ignores_deleted_signal_source_during_shutdown():
+    worker = ApiWorker(lambda: (_ for _ in ()).throw(SimulatorApiError("offline")))
+    worker.signals = SimpleNamespace(completed=DeletedSignal(), failed=DeletedSignal())
+
+    worker.run()
+
+
+def test_successful_in_flight_worker_also_ignores_deleted_signal_source():
+    worker = ApiWorker(lambda: {"components": []})
+    worker.signals = SimpleNamespace(completed=DeletedSignal(), failed=DeletedSignal())
+
+    worker.run()
+
+
+def test_worker_signal_does_not_hide_unrelated_runtime_errors():
+    class BrokenSignal:
+        def emit(self, value):
+            raise RuntimeError("unexpected Qt failure")
+
+    with pytest.raises(RuntimeError, match="unexpected Qt failure"):
+        emit_worker_signal(BrokenSignal(), "value")
+
+
+def test_callbacks_and_worker_start_are_ignored_after_close():
+    closing_window = SimpleNamespace(is_closing=True)
+
+    MainWindow._fleet_state_received(closing_window, object())
+    MainWindow._fleet_state_failed(closing_window, "Simulator request failed.")
+    MainWindow._start_worker(closing_window, lambda: None, lambda _: None, lambda _: None)
+
+
+def test_shutdown_stops_timers_and_cleans_up_owned_processes_once():
+    class Timer:
+        def __init__(self):
+            self.stopped = False
+
+        def stop(self):
+            self.stopped = True
+
+    class Pool:
+        def __init__(self):
+            self.cleared = False
+
+        def clear(self):
+            self.cleared = True
+
+    class Orchestrator:
+        def __init__(self):
+            self.shutdown_calls = 0
+
+        def shutdown(self):
+            self.shutdown_calls += 1
+
+    window = SimpleNamespace(
+        is_closing=False,
+        refresh_timer=Timer(),
+        runtime_timer=Timer(),
+        thread_pool=Pool(),
+        orchestrator=Orchestrator(),
+        event_log=EventLog(),
+        event_console=CapturingEventConsole(),
+    )
+    window._log_event = lambda source, message, severity="normal": MainWindow._log_event(window, source, message, severity)
+
+    MainWindow._begin_shutdown(window)
+    MainWindow._begin_shutdown(window)
+
+    assert window.is_closing
+    assert window.refresh_timer.stopped and window.runtime_timer.stopped
+    assert window.thread_pool.cleared
+    assert window.orchestrator.shutdown_calls == 1
+
+
+class CapturingEventConsole:
+    def __init__(self):
+        self.entries = []
+
+    def append(self, entry):
+        self.entries.append(entry)
+
+
+class CapturingIndicator:
+    def __init__(self):
+        self.states = []
+
+    def set_state(self, state):
+        self.states.append(state)
+
+
+def test_event_log_records_startup_and_deduplicates_identical_messages():
+    log = EventLog(now=lambda: datetime(2026, 8, 23, 11, 42, 3))
+
+    startup = log.record("SYSTEM", "Control Console started")
+    duplicate = log.record("SYSTEM", "Control Console started")
+
+    assert startup.text == "11:42:03  SYSTEM     Control Console started"
+    assert duplicate is None
+    assert len(log.entries) == 1
+
+
+def test_status_transition_is_logged_once_without_refresh_spam():
+    console = CapturingEventConsole()
+    window = SimpleNamespace(
+        is_closing=False,
+        event_log=EventLog(now=lambda: datetime(2026, 8, 23, 11, 42, 3)),
+        event_console=console,
+        simulator_state="unknown",
+    )
+    indicator = CapturingIndicator()
+    window._log_event = lambda source, message, severity="normal": MainWindow._log_event(window, source, message, severity)
+
+    MainWindow._set_status(window, "SIMULATOR", "simulator_state", indicator, "online", "Online")
+    MainWindow._set_status(window, "SIMULATOR", "simulator_state", indicator, "online", "Online")
+
+    assert indicator.states == ["online", "online"]
+    assert [entry.text for entry in console.entries] == ["11:42:03  SIMULATOR  Online"]
+
+
+def test_successful_and_failed_control_actions_are_logged_accurately():
+    console = CapturingEventConsole()
+    refreshed = []
+    window = SimpleNamespace(
+        is_closing=False,
+        event_log=EventLog(now=lambda: datetime(2026, 8, 23, 11, 42, 3)),
+        event_console=console,
+        refresh_fleet_state=lambda: refreshed.append(True),
+    )
+    window._log_event = lambda source, message, severity="normal": MainWindow._log_event(window, source, message, severity)
+
+    MainWindow._control_succeeded(window, "detroit-panel-03 -> OFFLINE")
+    MainWindow._control_failed(window, "Simulator request failed.")
+
+    assert refreshed == [True]
+    assert [entry.text for entry in console.entries] == [
+        "11:42:03  CONTROL    detroit-panel-03 -> OFFLINE",
+        "11:42:03  CONTROL    Simulator request failed.",
+    ]
+    assert console.entries[-1].severity == "error"
+
+
+def test_event_log_does_not_touch_the_widget_after_shutdown_begins():
+    console = CapturingEventConsole()
+    window = SimpleNamespace(is_closing=True, event_log=EventLog(), event_console=console)
+
+    MainWindow._log_event(window, "SIMULATOR", "Offline", "error")
+
+    assert console.entries == []

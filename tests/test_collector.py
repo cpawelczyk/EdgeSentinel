@@ -7,13 +7,16 @@ import pytest
 from src.collector.main import (
     AZURE_MONITOR_SCOPE,
     AZURE_STREAM_NAME,
+    AzureConfigurationError,
     AzureLogExporter,
     InventoryError,
+    check_azure_readiness,
     collect_component,
     load_azure_configuration,
     load_inventory,
     main as collector_main,
     parse_arguments,
+    resolve_azure_environment,
     run_collector,
     run_pass,
 )
@@ -80,6 +83,13 @@ def azure_configuration():
     return {
         "endpoint": "https://example.ingest.monitor.azure.com/",
         "dcr_immutable_id": "dcr-immutable-id",
+    }
+
+
+def azure_environment():
+    return {
+        "EDGESENTINEL_DCR_ENDPOINT": azure_configuration()["endpoint"],
+        "EDGESENTINEL_DCR_IMMUTABLE_ID": azure_configuration()["dcr_immutable_id"],
     }
 
 
@@ -222,6 +232,67 @@ def test_azure_configuration_strips_endpoint_trailing_slash():
     )
 
     assert loaded["endpoint"] == "https://example.ingest.monitor.azure.com"
+
+
+def test_dotenv_azure_values_are_used_when_process_environment_is_missing(tmp_path):
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text(
+        "EDGESENTINEL_DCR_ENDPOINT=https://dotenv.ingest.monitor.azure.com\n"
+        "EDGESENTINEL_DCR_IMMUTABLE_ID=dcr-dotenv-id\n",
+        encoding="utf-8",
+    )
+
+    configuration = load_azure_configuration({}, dotenv_path)
+
+    assert configuration == {
+        "endpoint": "https://dotenv.ingest.monitor.azure.com",
+        "dcr_immutable_id": "dcr-dotenv-id",
+    }
+
+
+def test_process_environment_overrides_dotenv_azure_values(tmp_path):
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text(
+        "EDGESENTINEL_DCR_ENDPOINT=https://dotenv.ingest.monitor.azure.com\n"
+        "EDGESENTINEL_DCR_IMMUTABLE_ID=dcr-dotenv-id\n",
+        encoding="utf-8",
+    )
+    environment = {
+        "EDGESENTINEL_DCR_ENDPOINT": "https://process.ingest.monitor.azure.com",
+        "EDGESENTINEL_DCR_IMMUTABLE_ID": "dcr-process-id",
+    }
+
+    resolved = resolve_azure_environment(environment, dotenv_path)
+
+    assert resolved["EDGESENTINEL_DCR_ENDPOINT"] == environment["EDGESENTINEL_DCR_ENDPOINT"]
+    assert resolved["EDGESENTINEL_DCR_IMMUTABLE_ID"] == environment["EDGESENTINEL_DCR_IMMUTABLE_ID"]
+
+
+def test_missing_azure_configuration_keeps_the_existing_clear_error(tmp_path):
+    with pytest.raises(AzureConfigurationError, match="missing required Azure environment variables"):
+        load_azure_configuration({}, tmp_path / ".env")
+
+
+def test_azure_readiness_reports_missing_configuration():
+    with pytest.raises(AzureConfigurationError, match="EDGESENTINEL_DCR_ENDPOINT"):
+        check_azure_readiness({})
+
+
+def test_azure_readiness_reports_token_failure():
+    class FailingCredential:
+        def get_token(self, *scopes):
+            raise RuntimeError("token failure")
+
+    with pytest.raises(RuntimeError, match="token failure"):
+        check_azure_readiness(azure_environment(), credential_factory=lambda: FailingCredential())
+
+
+def test_azure_readiness_acquires_azure_monitor_token():
+    credential = FakeCredential()
+
+    check_azure_readiness(azure_environment(), credential_factory=lambda: credential)
+
+    assert credential.scopes == [(AZURE_MONITOR_SCOPE,)]
 
 
 def test_azure_exporter_uses_default_azure_credential(monkeypatch):
@@ -479,6 +550,45 @@ def test_azure_export_sends_check_records_but_not_transitions():
 
     assert exported_records == [{"deviceId": "detroit-panel-01", "status": "online"}]
     assert json.loads(output[1])["eventType"] == "statusTransition"
+
+
+def test_collector_heartbeat_records_pass_and_azure_batch_result(tmp_path):
+    class Exporter:
+        def send(self, records, output):
+            assert len(records) == 1
+            return True
+
+    status_file = tmp_path / "collector-status.json"
+    run_pass(
+        {},
+        [COMPONENT],
+        lambda component, threshold: {"deviceId": component["deviceId"], "status": "online"},
+        azure_exporter=Exporter(),
+        status_file=status_file,
+    )
+
+    status = json.loads(status_file.read_text(encoding="utf-8"))
+    assert status["lastSuccessfulPass"] == status["lastAzureIngestion"]
+    assert "lastAzureFailure" not in status
+
+
+def test_collector_heartbeat_records_azure_batch_failure(tmp_path):
+    class Exporter:
+        def send(self, records, output):
+            return False
+
+    status_file = tmp_path / "collector-status.json"
+    run_pass(
+        {},
+        [COMPONENT],
+        lambda component, threshold: {"deviceId": component["deviceId"], "status": "online"},
+        azure_exporter=Exporter(),
+        status_file=status_file,
+    )
+
+    status = json.loads(status_file.read_text(encoding="utf-8"))
+    assert status["lastSuccessfulPass"] == status["lastAzureFailure"]
+    assert "lastAzureIngestion" not in status
 
 
 def test_azure_export_batches_a_complete_20_component_pass(monkeypatch):

@@ -11,17 +11,24 @@ From the repository root in PowerShell, install the dedicated GUI dependencies:
 python -m pip install -r src\control_console\requirements.txt
 ```
 
-Start the simulator in one PowerShell window:
+For the Azure-enabled demo, copy the safe template and populate your Azure Data
+Collection Rule settings. These are non-secret configuration values; authentication
+continues to use your normal `DefaultAzureCredential` sign-in.
 
 ```powershell
-python -m uvicorn main:app --app-dir src\simulator --reload
+Copy-Item .env.example .env
+# Edit .env and set EDGESENTINEL_DCR_ENDPOINT and EDGESENTINEL_DCR_IMMUTABLE_ID.
+az login
 ```
 
-Launch the control console from another window:
+Launch the control console:
 
 ```powershell
 python -m src.control_console.main
 ```
+
+Then use `SIMULATOR` → `AZURE` → `COLLECTOR`. The console starts and stops only
+the simulator and collector processes that it launched.
 
 ## Controls
 
@@ -33,4 +40,5 @@ python -m src.control_console.main
 
 The console polls `GET /fleet/state` every 1.5 seconds. It uses `effectiveStatus` for topology colors and connection lines while retaining the simulator’s stored `status` in the inspector. For example, a controller behind an offline gateway is shown as `UNREACHABLE` even when its stored status remains `ONLINE`.
 
-The `SIMULATOR` indicator reflects whether fleet-state polling succeeds. `COLLECTOR` and `AZURE` intentionally remain `UNKNOWN` until reliable health signals are added in a future milestone.
+The indicators report simulator reachability, collector heartbeat health, and Azure
+credential/recent ingestion health.

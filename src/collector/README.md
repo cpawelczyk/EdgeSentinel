@@ -69,13 +69,16 @@ Example output:
 
 The collector is local-only by default; Azure configuration is not needed unless `--azure` is supplied. With Azure enabled, normalized check records continue to print locally and are also sent to Azure Monitor Logs. Status-transition records remain local-only.
 
-Sign in locally with the Azure CLI, then set the DCR configuration variables in the same PowerShell session:
+Copy the project template to `.env`, populate the DCR endpoint and immutable ID,
+then sign in normally for `DefaultAzureCredential`:
 
 ```powershell
+Copy-Item .env.example .env
+# Edit .env and set EDGESENTINEL_DCR_ENDPOINT and EDGESENTINEL_DCR_IMMUTABLE_ID.
 az login --tenant <tenant-id>
-$env:EDGESENTINEL_DCR_ENDPOINT = "<logs-ingestion-endpoint>"
-$env:EDGESENTINEL_DCR_IMMUTABLE_ID = "<dcr-immutable-id>"
 ```
+
+Explicit PowerShell environment values still take precedence over `.env` values.
 
 Run with Azure export enabled:
 
