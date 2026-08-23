@@ -1,0 +1,10 @@
+EdgeSentinel_CL
+| summarize
+    TotalDevices = dcount(deviceId),
+    OnlineDevices = dcountif(deviceId, status == "online")
+    by bin(TimeGenerated, 5m)
+| where TotalDevices >= 10
+| extend AvailabilityPct =
+    round(100.0 * OnlineDevices / TotalDevices, 1)
+| project TimeGenerated, AvailabilityPct
+| order by TimeGenerated asc

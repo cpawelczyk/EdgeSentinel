@@ -1,11 +1,10 @@
 EdgeSentinel_CL
 | summarize arg_max(TimeGenerated, *) by deviceId
 | project
-    deviceId,
-    siteId,
-    componentType,
-    status,
-    latencyMs,
-    failureReason,
-    TimeGenerated
-| order by siteId asc, componentType asc, deviceId asc
+    Device = deviceId,
+    Site = siteId,
+    Type = componentType,
+    Status = status,
+    ["Latency (ms)"] = round(todouble(latencyMs), 1),
+    ["Last Reported"] = TimeGenerated
+| order by Site asc, Device asc
