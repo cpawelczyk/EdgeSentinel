@@ -13,7 +13,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend Available = Online + Degraded\r\n| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)",
         "size": 0,
         "timeContext": {
           "durationMs": 86400000
@@ -47,7 +47,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend Available = Online + Degraded\r\n| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)",
         "size": 0,
         "timeContext": {
           "durationMs": 86400000
@@ -81,7 +81,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend Available = Online + Degraded\r\n| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)",
         "size": 0,
         "timeContext": {
           "durationMs": 86400000
@@ -115,7 +115,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend Available = Online + Degraded\r\n| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)",
         "size": 0,
         "timeContext": {
           "durationMs": 86400000
@@ -149,7 +149,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend Available = Online + Degraded\r\n| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)",
         "size": 0,
         "timeContext": {
           "durationMs": 86400000
@@ -183,7 +183,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    TotalDevices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n| extend Available = Online + Degraded\r\n| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)",
         "size": 0,
         "timeContext": {
           "durationMs": 86400000
@@ -271,7 +271,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    Devices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n    by Site = siteId\r\n| extend Availability = round(100.0 * Online / Devices, 1)\r\n| order by Site asc",
+        "query": "EdgeSentinel_CL\r\n| summarize arg_max(TimeGenerated, *) by deviceId\r\n| summarize\r\n    Devices = count(),\r\n    Online = countif(status == \"online\"),\r\n    Degraded = countif(status == \"degraded\"),\r\n    Offline = countif(status == \"offline\"),\r\n    Unknown = countif(status == \"unknown\")\r\n    by Site = siteId\r\n| extend Availability = round(100.0 * (Online + Degraded) / Devices, 1)\r\n| order by Site asc",
         "size": 1,
         "timeContext": {
           "durationMs": 86400000
@@ -335,7 +335,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Fleet Availability Over Time\r\nHistorical percentage of simulated edge devices reporting online."
+        "json": "## Fleet Availability Over Time\r\nHistorical percentage of simulated edge devices available, including degraded devices."
       },
       "customWidth": "50",
       "name": "text-fleet-availability-trend"
@@ -397,7 +397,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "EdgeSentinel_CL\r\n| where TimeGenerated >= ago(30m)\r\n| summarize\r\n    TotalDevices = dcount(deviceId),\r\n    OnlineDevices = dcountif(deviceId, status == \"online\")\r\n    by bin(TimeGenerated, 1m)\r\n| where TotalDevices >= 10\r\n| extend AvailabilityPct =\r\n    round(100.0 * OnlineDevices / TotalDevices, 1)\r\n| project TimeGenerated, AvailabilityPct\r\n| order by TimeGenerated asc",
+        "query": "EdgeSentinel_CL\r\n| where TimeGenerated >= ago(30m)\r\n| summarize\r\n    TotalDevices = dcount(deviceId),\r\n    AvailableDevices = dcountif(deviceId, status in (\"online\", \"degraded\"))\r\n    by bin(TimeGenerated, 1m)\r\n| where TotalDevices >= 10\r\n| extend AvailabilityPct =\r\n    round(100.0 * AvailableDevices / TotalDevices, 1)\r\n| project TimeGenerated, AvailabilityPct\r\n| order by TimeGenerated asc",
         "size": 0,
         "aggregation": 5,
         "timeContext": {
