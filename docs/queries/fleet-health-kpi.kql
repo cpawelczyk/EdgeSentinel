@@ -6,4 +6,5 @@ EdgeSentinel_CL
     Degraded = countif(status == "degraded"),
     Offline = countif(status == "offline"),
     Unknown = countif(status == "unknown")
-| extend AvailabilityPct = round(100.0 * Online / TotalDevices, 1)
+| extend Available = Online + Degraded
+| extend AvailabilityPct = round(100.0 * Available / TotalDevices, 1)

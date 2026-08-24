@@ -7,5 +7,6 @@ EdgeSentinel_CL
     Offline = countif(status == "offline"),
     Unknown = countif(status == "unknown")
     by Site = siteId
-| extend Availability = round(100.0 * Online / Devices, 1)
+| extend Available = Online + Degraded
+| extend Availability = round(100.0 * Available / Devices, 1)
 | order by Site asc

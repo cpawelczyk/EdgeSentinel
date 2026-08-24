@@ -2,10 +2,10 @@ EdgeSentinel_CL
 | where TimeGenerated >= ago(30m)
 | summarize
     TotalDevices = dcount(deviceId),
-    OnlineDevices = dcountif(deviceId, status == "online")
+    AvailableDevices = dcountif(deviceId, status in ("online", "degraded"))
     by bin(TimeGenerated, 1m)
 | where TotalDevices >= 10
 | extend AvailabilityPct =
-    round(100.0 * OnlineDevices / TotalDevices, 1)
+    round(100.0 * AvailableDevices / TotalDevices, 1)
 | project TimeGenerated, AvailabilityPct
 | order by TimeGenerated asc
