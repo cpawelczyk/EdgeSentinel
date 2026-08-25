@@ -262,11 +262,8 @@ Instead of only testing individual functions, a failure can be deliberately intr
 ```text
 EdgeSentinel/
 ├── docs/
-│   ├── architecture/       # Architecture plans and supporting documentation
 │   ├── design/             # Project design documentation
 │   ├── images/             # README diagrams and project screenshots
-│   ├── notes/              # Implementation notes
-│   ├── planning/           # Scope, roadmap, and project planning
 │   ├── queries/            # KQL queries
 │   └── workbooks/          # Azure Workbook definition
 ├── grafana/

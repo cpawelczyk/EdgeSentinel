@@ -477,7 +477,7 @@
     }
   ],
   "fallbackResourceIds": [
-    "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
   ],
   "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }

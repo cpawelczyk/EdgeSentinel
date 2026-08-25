@@ -60,7 +60,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize arg_max(TimeGenerated, *) by deviceId\n| extend EffectiveStatus = iff(TimeGenerated < ago(3m), \"unknown\", status)\n| summarize Total=count(), Available=countif(EffectiveStatus in (\"online\",\"degraded\"))\n| extend AvailabilityPct = round(100.0 * Available / Total, 1)\n| project AvailabilityPct",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -74,15 +74,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -187,7 +187,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize arg_max(TimeGenerated, *) by deviceId\n| extend EffectiveStatus = iff(TimeGenerated < ago(3m), \"unknown\", status)\n| where EffectiveStatus == \"offline\"\n| summarize Count=count()",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -201,15 +201,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -299,7 +299,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize arg_max(TimeGenerated, *) by deviceId\n| extend EffectiveStatus = iff(TimeGenerated < ago(3m), \"unknown\", status)\n| where EffectiveStatus == \"degraded\"\n| summarize Count=count()",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -313,15 +313,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -411,7 +411,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize arg_max(TimeGenerated, *) by deviceId\n| extend EffectiveStatus = iff(TimeGenerated < ago(3m), \"unknown\", status)\n| where EffectiveStatus == \"unknown\"\n| summarize Count=count()",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -425,15 +425,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -523,7 +523,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize arg_max(TimeGenerated, *) by deviceId\n| extend EffectiveStatus = iff(TimeGenerated < ago(3m), \"unknown\", status)\n| where siteId != \"shared\"\n| summarize Devices=count(), Available=countif(EffectiveStatus in (\"online\",\"degraded\")) by siteId\n| extend Availability = round(100.0 * Available / Devices, 1)\n| extend Site = case(\n    siteId==\"detroit\",\"DTW\",\n    siteId==\"atlanta\",\"ATL\",\n    siteId==\"phoenix\",\"PHX\",\n    toupper(siteId)\n)\n| project Site, Availability\n| order by Availability asc",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -537,15 +537,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -639,7 +639,7 @@
                           "mode": "raw",
                           "query": "let Latest =\n    EdgeSentinel_CL\n    | summarize arg_max(TimeGenerated, *) by deviceId\n    | extend IsStale = TimeGenerated < ago(3m)\n    | extend EffectiveStatus = iff(IsStale, \"unknown\", status);\nlet Issues =\n    Latest\n    | where EffectiveStatus != \"online\"\n    | extend Reason = iff(IsStale, \"heartbeat stale\", failureReason)\n    | extend Site = case(siteId==\"detroit\",\"DTW\", siteId==\"atlanta\",\"ATL\", siteId==\"phoenix\",\"PHX\", toupper(siteId))\n    | project Site, Device=deviceId, Status=EffectiveStatus, Reason, LastSeen=TimeGenerated;\nlet Healthy =\n    Latest\n    | summarize IssueCount=countif(EffectiveStatus != \"online\"), LastSeen=max(TimeGenerated)\n    | where IssueCount == 0\n    | project Site=\"FLEET\", Device=\"—\", Status=\"healthy\", Reason=\"No active incidents\", LastSeen;\nunion Issues, Healthy\n| order by Status asc, Site asc",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -653,15 +653,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -824,7 +824,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize Latest=max(TimeGenerated)\n| extend TelemetryAgeSec = max_of(0, toint(datetime_diff(\"second\", now(), Latest)))\n| project TelemetryAgeSec",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -838,15 +838,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
@@ -940,7 +940,7 @@
                           "mode": "raw",
                           "query": "EdgeSentinel_CL\n| summarize arg_max(TimeGenerated, *) by deviceId\n| extend EffectiveStatus=iff(TimeGenerated < ago(3m),\"unknown\",status)\n| where siteId != \"shared\"\n| summarize Devices=count(),\n            Online=countif(EffectiveStatus==\"online\"),\n            Degraded=countif(EffectiveStatus==\"degraded\"),\n            Offline=countif(EffectiveStatus==\"offline\"),\n            Unknown=countif(EffectiveStatus==\"unknown\") by siteId\n| extend Availability=round(100.0*(Online+Degraded)/Devices,1)\n| extend Site=toupper(siteId)\n| extend Latitude=case(siteId==\"detroit\",42.3314,siteId==\"phoenix\",33.4484,siteId==\"atlanta\",33.7490,real(null)),\n         Longitude=case(siteId==\"detroit\",-83.0458,siteId==\"phoenix\",-112.0740,siteId==\"atlanta\",-84.3880,real(null))\n| where isnotnull(Latitude)\n| project Site, Latitude, Longitude, Availability, Devices, Online, Degraded, Offline, Unknown",
                           "resources": [
-                            "/subscriptions/fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db/resourceGroups/rg-edgesentinel-dev/providers/Microsoft.OperationalInsights/workspaces/law-edgesentinel-dev"
+                            "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.OperationalInsights/workspaces/<workspace-name>"
                           ],
                           "resultFormat": "logs",
                           "timeColumn": "TimeGenerated"
@@ -954,15 +954,15 @@
                             {
                               "metricNamespace": "Microsoft.OperationalInsights/workspaces",
                               "region": "eastus",
-                              "resourceGroup": "rg-edgesentinel-dev",
-                              "resourceName": "law-edgesentinel-dev",
-                              "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                              "resourceGroup": "<resource-group-name>",
+                              "resourceName": "<workspace-name>",
+                              "subscription": "<subscription-id>"
                             }
                           ],
                           "timeGrain": "auto"
                         },
                         "queryType": "Azure Log Analytics",
-                        "subscription": "fc20fa53-b6ab-49f0-9aaf-fe03f7e2f5db"
+                        "subscription": "<subscription-id>"
                       }
                     },
                     "refId": "A",
