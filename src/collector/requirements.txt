@@ -1,2 +1,2 @@
-httpx
-azure-identity
+httpx==0.28.1
+azure-identity==1.25.3

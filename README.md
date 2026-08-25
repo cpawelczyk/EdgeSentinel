@@ -162,6 +162,8 @@ The collector authenticates using **Microsoft Entra ID** and securely pipelines 
 
 A **Data Collection Rule (DCR)** defines the ingestion path into the custom `EdgeSentinel_CL` table in Azure Log Analytics.
 
+The identity running the collector is granted the least-privilege `Monitoring Metrics Publisher` role on the Data Collection Rule.
+
 Azure Log Analytics then becomes the central telemetry store for the monitoring environment.
 
 ### Query & Detection

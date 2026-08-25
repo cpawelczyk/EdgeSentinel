@@ -1,128 +1,37 @@
-# Edge Sentinel Design
+# Edge Sentinel Technical Design
 
-## How Edge Sentinel Works
+Edge Sentinel is a local proof of concept for observing simulated physical-security infrastructure. It keeps the monitoring boundary separate from the simulated fleet: the collector polls HTTP health endpoints, normalizes the observations, and optionally exports them to Azure.
 
-Edge Sentinel observes simulated access-control infrastructure from outside the simulated environment. A simulator exposes the health of sites, gateways, controllers, and shared services. A monitoring collector polls those endpoints, evaluates their health over time, correlates related failures, and sends normalized records to Azure Log Analytics. Azure Monitor queries those records for dashboards, alerts, and notification automation.
+![Current Edge Sentinel architecture](../images/architecture-diagram.png)
 
-```text
-Simulator --> Monitoring Collector --> Azure Log Analytics / Azure Monitor
-                                              |          |
-                                              |          +--> Alert rules --> Action group --> Logic App
-                                              +--> KQL queries and Workbook
-```
+## Simulator
 
-The collector is intentionally independent of the simulator. It must be able to distinguish a component reporting a bad state from the collector being unable to reach that component.
+The FastAPI simulator models a fictional fleet across Detroit, Atlanta, and Phoenix: each site has a gateway and five controllers, with shared access-control and video-management services. State is held in memory, so restarting the simulator restores the fleet baseline.
 
-## Design Principles
+The local control API supports component and site fault injection, fleet reset, and bounded randomization. A component can be `online`, `degraded`, or `offline`, and can be assigned a response delay. The collector classifies an otherwise healthy response that exceeds its configured latency threshold as `degraded`.
 
-- **External observation:** Health is assessed by an independent collector, not trusted solely to the simulated application.
-- **Explainable incidents:** Every state change includes enough context to support triage.
-- **Correlate before notifying:** Prefer one gateway or site incident over many duplicate controller incidents when the evidence shows a shared cause.
-- **Configuration over discovery:** V1 reads a version-controlled inventory instead of performing network discovery.
-- **Safe automation:** Automation notifies or creates a simulated incident; it does not change real infrastructure.
-- **Small and maintainable:** V1 uses simple polling, deterministic fault injection, and structured logs rather than unnecessary distributed services.
+Gateway state is dependency-aware: when a site gateway is offline, its controllers retain their stored state but return HTTP 503 through their health endpoints. Site control changes the gateway and controllers at that site; shared services are independent. The control console starts the simulator bound to `127.0.0.1` for local demonstration use.
 
-## Components and Responsibilities
+## Collector and telemetry
 
-### Enterprise Infrastructure Simulator
+The Python collector reads the version-controlled inventory and polls each configured health endpoint on a configurable interval. It records application-reported health, response latency, malformed responses, timeouts, HTTP errors, and connection failures without relying on simulator internals.
 
-The simulator models three sites: Detroit, Atlanta, and Phoenix. Each site has one gateway and five controllers. Two shared dependencies represent an access-control application service and a video-management service.
+Each normalized check record uses one of four health states: `online`, `degraded`, `offline`, or `unknown`. `unknown` represents an observation failure such as a timeout, HTTP error, or connection failure. Recovery is not a check-record health state: when a component changes state, the collector emits a separate transition record; a transition from `offline` or `unknown` to `online` is labeled `recovered`.
 
-It exposes HTTP health/status endpoints, reports application-level state, and supports deterministic fault scenarios such as offline, slow response, intermittent failure, flapping, dependency failure, and site outage. It does not implement physical-access workflows, vendor APIs, or proprietary protocols.
+## Azure observability path
 
-### Monitoring Collector
+Azure export is opt-in. The collector resolves the DCR endpoint and immutable ID from process environment variables or a local ignored `.env` file, then uses `DefaultAzureCredential` to obtain an Azure Monitor token. It sends normalized check records to the Azure Monitor Logs Ingestion API, through a Direct Data Collection Rule (DCR), into the `EdgeSentinel_CL` custom table in Azure Log Analytics.
 
-The collector reads the component inventory and polls each configured endpoint. It measures response time, interprets the response, records connectivity failures, and keeps enough recent state to identify meaningful health changes.
+Workspace local/shared-key authentication is disabled; the implemented Azure integrations use Microsoft Entra ID and Azure RBAC authentication.
 
-The collector:
+Collector identity selection and DCR-scoped `Monitoring Metrics Publisher` authorization are intentionally external to the reusable Bicep deployment, allowing each operator to authorize its own least-privilege credential.
 
-- performs HTTP health checks in V1;
-- distinguishes connectivity failures from application-reported unhealthy states;
-- classifies online, offline, degraded, flapping, recovery, and stale-telemetry states;
-- correlates controller failures with gateway or site failures; and
-- sends normalized telemetry to Azure.
+KQL queries in `docs/queries/` produce current fleet and site views, availability trends, active failures, and alert inputs. The tracked Azure Workbook definition and Grafana dashboard both consume this telemetry model; Azure Monitor alerting detects unhealthy devices from the Log Analytics data.
 
-### Azure Observability and Automation
+## Infrastructure as code
 
-Azure stores and presents the collector's telemetry. Log Analytics is the central telemetry store; Azure Monitor runs analysis and alerting on that data.
+The Bicep deployment is resource-group scoped and provisions the core ingestion foundation: a Log Analytics workspace, the `EdgeSentinel_CL` custom table, and a Direct DCR with its stream declaration, transformation, and Log Analytics destination. It does not deploy the simulator, collector, Grafana, alert rules, or workflow automation.
 
-- Azure Workbooks show fleet availability, site health, active incidents, affected components, and latency trends.
-- KQL queries support investigation and scheduled-query alert rules.
-- Action groups invoke a Logic App for a notification or simulated incident workflow.
-- Bicep provisions the Azure resources; GitHub Actions validates and deploys the infrastructure definition.
+## Scope
 
-## Inventory and Polling
-
-The V1 inventory is a version-controlled configuration file that identifies each component, its site, type, and endpoint. The collector polls this inventory on a configurable interval and records the result of each check. This keeps the monitored topology visible and reproducible without adding network discovery.
-
-## Health Classification and Correlation
-
-Health rules describe how the collector interprets patterns over time. Their thresholds are configuration, not fixed architecture:
-
-| Condition | Intended behavior |
-| --- | --- |
-| Offline | Treat sustained failed checks as an offline state. |
-| Recovery | Report when an offline component has returned to a healthy state. |
-| Degraded | Identify slow or intermittently failing components before they are considered offline. |
-| Flapping | Identify components whose health changes repeatedly in a short period. |
-| Site outage | Recognize when failures across a site indicate a wider issue. |
-| Shared cause | Prefer a gateway or site incident when multiple impacted controllers share that dependency. |
-
-Network observation and application observation remain separate. For example, an HTTP response that says `offline` is different from a timeout where the collector cannot contact the endpoint. The telemetry preserves this distinction through `status` and `failureReason`.
-
-## Telemetry Schema
-
-The collector emits one structured record per completed check. The initial contract is:
-
-| Field | Meaning |
-| --- | --- |
-| `timestamp` | UTC time the check completed. |
-| `deviceId` | Stable identifier for the component. |
-| `siteId` | Identifier for its site or facility. |
-| `componentType` | Type of component being monitored. |
-| `checkType` | Kind of health check performed. |
-| `status` | `online`, `offline`, `degraded`, `unknown`, or `recovered`. |
-| `latencyMs` | Response duration, if a response was received. |
-| `failureReason` | Normalized reason for a failed or unhealthy check. |
-| `consecutiveFailures` | Current sequence of failed checks, when applicable. |
-| `severity` | Informational, warning, error, or critical. |
-| `correlationId` | Identifier shared by related component, gateway, or site events. |
-| `collectorId` | Identifier for the collector instance. |
-
-Telemetry must not include credentials, controller configuration, badgeholder data, or other sensitive physical-security information.
-
-## API Contract
-
-Each simulated component exposes an HTTP health endpoint. The exact route is implementation-specific, but its response provides a stable component identity and an application-level status.
-
-Example response:
-
-```json
-{
-  "deviceId": "detroit-panel-01",
-  "siteId": "detroit",
-  "componentType": "controller",
-  "status": "online"
-}
-```
-
-HTTP success alone does not mean that a component is healthy. The collector considers the returned `status` and its observation of the request; failed requests become a normalized `failureReason`.
-
-## Azure Implementation Decisions
-
-Azure provides the centralized observability layer. The collector sends structured telemetry to Log Analytics, where Azure Monitor supports queries, dashboards, and alerts. Alert workflows notify operators or create a simulated incident through the existing automation path.
-
-Azure resources are defined with Bicep and deployed through GitHub Actions. Access to Azure follows least-privilege principles, and secrets are kept outside source control. The simulator and collector can run wherever is most practical during development; their responsibilities and telemetry contract do not depend on a particular hosting model.
-
-## Future Enhancements
-
-These are not Version 1 requirements:
-
-- Ping and TCP port checks in addition to HTTP health checks.
-- Azure Arc integration.
-- Containerized simulator and collector deployments.
-- Azure Container Apps or Azure Functions runtimes.
-- Event Grid-driven processing.
-- ServiceNow Developer Instance integration.
-- Simulated camera infrastructure.
-- AI-assisted anomaly detection after baseline telemetry exists.
+This project is intentionally a proof of concept, not a production access-control integration. A production implementation could replace the simulator with supported platform APIs while preserving the collection, normalization, and observability pattern.

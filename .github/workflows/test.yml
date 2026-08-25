@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            src/collector/requirements.txt
+            src/simulator/requirements.txt
+            src/control_console/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r src/simulator/requirements.txt -r src/collector/requirements.txt -r src/control_console/requirements.txt
+
+      - name: Run tests
+        run: python -m pytest

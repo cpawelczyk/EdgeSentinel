@@ -30,7 +30,7 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
     publicNetworkAccessForQuery: 'Enabled'
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
-      disableLocalAuth: false
+      disableLocalAuth: true
     }
   }
 }
