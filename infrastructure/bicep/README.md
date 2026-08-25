@@ -13,7 +13,7 @@ The existing resource group is intentionally not created by this template.
 ## Validate
 
 ```powershell
-az bicep build --file .\infra\main.bicep
+az bicep build --file .\infrastructure\bicep\main.bicep
 ```
 
 ## Preview changes
@@ -21,8 +21,8 @@ az bicep build --file .\infra\main.bicep
 ```powershell
 az deployment group what-if `
   --resource-group rg-edgesentinel-dev `
-  --template-file .\infra\main.bicep `
-  --parameters .\infra\parameters.dev.json
+  --template-file .\infrastructure\bicep\main.bicep `
+  --parameters .\infrastructure\bicep\parameters.dev.json
 ```
 
 ## Deploy
@@ -30,8 +30,8 @@ az deployment group what-if `
 ```powershell
 az deployment group create `
   --resource-group rg-edgesentinel-dev `
-  --template-file .\infra\main.bicep `
-  --parameters .\infra\parameters.dev.json
+  --template-file .\infrastructure\bicep\main.bicep `
+  --parameters .\infrastructure\bicep\parameters.dev.json
 ```
 
 After deployment, use the `logsIngestionEndpoint` and `dcrImmutableId` outputs for:
